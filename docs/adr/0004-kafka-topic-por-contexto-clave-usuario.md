@@ -35,7 +35,7 @@ Kafka, en modo KRaft con un solo nodo en local:
 - **Clave = `usuarioId`.** Así, todos los eventos de un usuario en un contexto están en la misma
   partición y llegan **en orden total**, también entre agregados distintos (el documento antes que sus
   transacciones).
-- Cada topic tiene 3 particiones, `retention.ms=-1` (retención infinita) y su DLT `<topic>-dlt`.
+- Cada topic tiene 3 particiones y `retention.ms=-1` (retención infinita). Cada servicio consumidor tiene su DLT `<servicio>.dlt` (decisión de F1, ver la bitácora).
 - Los topics los crea el productor; la autocreación del broker está desactivada.
 
 ## Consecuencias

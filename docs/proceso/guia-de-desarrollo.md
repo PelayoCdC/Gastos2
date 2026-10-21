@@ -54,7 +54,7 @@ servicios/<svc>/src/main/resources/db/migration/   Flyway V1__..., V2__...
 
 1. **Dominio:**
    - Si la operación tiene reglas, implementa un método en el agregado que valide las invariantes,
-     haga `siguienteVersion()` y `registrar(new EventoX(..., version))`.
+     haga `siguienteVersion()` y `registrarEvento(new EventoX(..., version))`.
    - Escribe su test unitario.
 2. **Aplicación:**
    - Crea `class HacerX` con `@CasoDeUso`, que recibe sus puertos por constructor.

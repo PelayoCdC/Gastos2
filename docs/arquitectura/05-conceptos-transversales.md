@@ -61,7 +61,7 @@ sequenceDiagram
 - **Consumidores:**
   - **Con efectos** (sembrar el catálogo, clasificar al importar): usan el inbox.
   - **Proyecciones:** usan la versión (`WHERE version_x < ?`) y lápidas.
-- **Errores:** un evento que falla repetidamente va a `<topic>-dlt` y no bloquea la partición.
+- **Errores:** un evento que falla repetidamente va al DLT del servicio consumidor (`<servicio>.dlt`, con las cabeceras del topic y el error originales) y no bloquea la partición.
 
 ## 5.5 Seguridad
 

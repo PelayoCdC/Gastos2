@@ -22,7 +22,7 @@ class RaizAgregadoTest {
 		}
 
 		void renombrar(String nombre) {
-			this.registrar(new Renombrado(this.id, USUARIO, this.siguienteVersion(), nombre));
+			this.registrarEvento(new Renombrado(this.id, USUARIO, this.siguienteVersion(), nombre));
 		}
 
 		@Override

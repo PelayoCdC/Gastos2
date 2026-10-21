@@ -61,7 +61,7 @@ public abstract class RaizAgregado<ID> {
 		return ++this.version;
 	}
 
-	protected void registrar(EventoDominio evento) {
+	protected void registrarEvento(EventoDominio evento) {
 		this.eventos.add(evento);
 	}
 

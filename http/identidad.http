@@ -1,0 +1,23 @@
+### Ejemplos ejecutables con el cliente HTTP de IntelliJ (o la extensión REST Client de VS Code).
+### Entorno en http/http-client.env.json: "local" apunta directamente al servicio y "gateway" (F2) a la entrada única.
+
+### Registro (público)
+POST {{identidad}}/registros
+Content-Type: application/json
+
+{ "nombre": "Ana", "email": "ana@ejemplo.es", "contrasena": "secreto123" }
+
+### Inicio de sesión (público): guarda el token para las siguientes peticiones
+POST {{identidad}}/sesiones
+Content-Type: application/json
+
+{ "email": "ana@ejemplo.es", "contrasena": "secreto123" }
+
+> {% client.global.set("token", response.body.token); %}
+
+### Perfil del usuario autenticado
+GET {{identidad}}/usuarios/yo
+Authorization: Bearer {{token}}
+
+### Clave pública para validar tokens (JWKS)
+GET {{identidad}}/.well-known/jwks.json

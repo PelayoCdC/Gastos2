@@ -25,6 +25,10 @@
 	<modules>
 		<module>compartido/kernel</module>
 		<module>compartido/pruebas</module>
+		<module>compartido/contratos</module>
+		<module>compartido/web</module>
+		<module>compartido/mensajeria</module>
+		<module>servicios/identidad</module>
 	</modules>
 
 	<properties>

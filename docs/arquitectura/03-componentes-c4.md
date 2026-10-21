@@ -51,9 +51,50 @@ flowchart LR
 
 | Servicio | Sección | Fase |
 |---|---|---|
-| identidad | (pendiente) | F1 |
+| identidad | [identidad](#identidad) | F1 ✅ |
 | gateway | (pendiente) | F2 |
 | movimientos | (pendiente) | F3–F4 |
 | clasificacion | (pendiente) | F5–F6 |
 | importacion | (pendiente) | F7 |
 | consultas | (pendiente) | F8–F9 |
+
+## identidad
+
+```mermaid
+flowchart LR
+    subgraph in [Entrada]
+        ctl["IdentidadController<br/>POST /registros, POST /sesiones,<br/>GET /usuarios/yo"]
+        jwks["JwksController<br/>GET /.well-known/jwks.json"]
+    end
+    subgraph app [aplicacion]
+        reg["RegistrarUsuario"]
+        ses["IniciarSesion"]
+        per["ConsultarPerfil"]
+        cif(["CifradorContrasenas"])
+        emi(["EmisorTokens"])
+    end
+    subgraph dom [dominio/usuario]
+        usu["Usuario + Email, Nombre,<br/>ContrasenaEnClaro, HashContrasena"]
+        evt["UsuarioRegistrado"]
+        rep(["UsuarioRepositorio"])
+    end
+    subgraph out [Salida]
+        jdbc["UsuarioRepositorioJdbc"]
+        bc["CifradorBCrypt"]
+        jwt["EmisorTokensJwt + ClaveFirma (RS256)"]
+        trad["TraductorEventosIdentidad → outbox"]
+    end
+    ctl --> reg & ses & per
+    reg & ses & per --> usu & rep
+    reg --> cif
+    ses --> cif & emi
+    jdbc -. implementa .-> rep
+    bc -. implementa .-> cif
+    jwt -. implementa .-> emi
+    jwks --> jwt
+    usu --> evt --> trad
+```
+
+Los puertos de salida (óvalos) los define el núcleo y los implementan los adaptadores. La traducción
+del evento de dominio al contrato `identidad.v1.UsuarioRegistrado` ocurre en la infraestructura: el
+dominio no conoce el lenguaje publicado.

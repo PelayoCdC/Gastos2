@@ -8,7 +8,15 @@ Todo el sistema se despliega en local con un único `compose.yaml` en la raíz d
 |---|---|---|---|
 | `mariadb` | `mariadb:11.8` | 3307 | Una base y un usuario por servicio (`infra/mariadb/init/01-bases.sql`); volumen `datos-mariadb` |
 | `kafka` | `apache/kafka:4.2.2` | 9094 | KRaft, un nodo, autocreación de topics desactivada; volumen `datos-kafka` |
-| servicios y gateway | se construyen desde el `Dockerfile` raíz | gateway 8090 (el resto, solo en el perfil dev) | Se añaden en F1–F9 |
+| `identidad` | `Dockerfile` raíz, target `identidad` | `127.0.0.1:8081` (solo para depurar) | Monta `infra/claves` de solo lectura; healthcheck `/actuator/health` |
+| resto de servicios y gateway | `Dockerfile` raíz, un target por servicio | gateway 8090; el resto en `127.0.0.1:808x` | Se añaden en F2–F9 |
+
+**Imágenes.** El `Dockerfile` raíz tiene una etapa `build` que compila todo el monorepo una vez, con
+caché de `~/.m2` gracias a BuildKit, y una etapa final por servicio sobre `eclipse-temurin:21-jre`, que
+ya trae `curl` para los healthchecks. Dentro del contenedor todos los servicios escuchan en el 8080.
+
+**Puertos de los servicios.** Se publican solo en `127.0.0.1` para poder depurar sin pasar por el
+gateway. Así no quedan expuestos a la red, y sus rutas `/internal/**` tampoco.
 
 Los puertos del host se eligieron para convivir con el stack antiguo (`Gastos/docker-compose.yaml`),
 que usa 8080, 3306 y 4200.

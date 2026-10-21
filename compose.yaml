@@ -55,6 +55,34 @@ services:
       timeout: 10s
       retries: 30
 
+  identidad:
+    build:
+      context: .
+      target: identidad
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mariadb://mariadb:3306/identidad
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      GASTOS_IDENTIDAD_CLAVE_PRIVADA: file:/claves/jwt-privada.pem
+      # Sin clave montada se usa una efímera (solo desarrollo); scripts/generar-claves-dev.sh crea la fija
+      GASTOS_IDENTIDAD_PERMITIR_CLAVE_EFIMERA: "true"
+    volumes:
+      - ./infra/claves:/claves:ro
+    ports:
+      # Solo en localhost y para depurar; el acceso normal es a través del gateway
+      - "127.0.0.1:8081:8080"
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    mem_limit: 512m
+    healthcheck: &salud-spring
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      start_period: 40s
+      retries: 10
+
 volumes:
   datos-mariadb:
   # El log de Kafka es la fuente para reconstruir las proyecciones de consultas: hay que respaldarlo

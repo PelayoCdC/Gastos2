@@ -38,9 +38,31 @@ Cada mensaje de Kafka lleva:
 | `clasificacion.eventos` | clasificacion | consultas |
 | `importacion.eventos` | importacion | consultas |
 
+**Mensajes fallidos.** Cada servicio consumidor tiene su DLT, `<servicio>.dlt` (por ejemplo,
+`clasificacion.dlt`). Un mensaje que falla tres veces seguidas va ahí, con cabeceras que indican el topic,
+la partición, el offset y el error originales, y la partición sigue avanzando.
+
 ## Eventos
 
 Cada evento se documenta cuando se implementa, con su productor, sus consumidores, sus campos y qué hace
-el consumidor si llega tarde o repetido.
+el consumidor si llega tarde o repetido. La muestra JSON aprobada de cada uno está en
+`compartido/contratos/src/test/resources/contratos/`.
 
-*(Todavía no hay eventos implementados: el primero, `UsuarioRegistrado`, llega en F1.)*
+### identidad.eventos
+
+#### `UsuarioRegistrado` (v1)
+
+- **Productor:** identidad, desde el caso de uso `RegistrarUsuario`.
+- **Consumidores:**
+  - clasificacion (F5), que siembra el catálogo inicial del usuario.
+- **Clave:** el `usuarioId` del usuario registrado. `agregadoId` es el mismo id y `versionAgregado` vale 1.
+
+| Campo | Tipo | Descripción |
+|---|---|---|
+| `usuarioId` | UUID | Id del usuario nuevo |
+| `email` | texto | Email en forma canónica (minúsculas) |
+| `nombre` | texto | Nombre visible |
+
+- **Si llega repetido:** clasificacion usa el inbox y la siembra es idempotente (`catalogo_sembrado`).
+- **Si llega tarde:** clasificacion siembra de forma perezosa en la primera petición del usuario, así que
+  el evento tardío no hace nada.

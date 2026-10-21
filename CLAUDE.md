@@ -53,7 +53,7 @@ docker compose up -d mariadb kafka --wait     # MariaDB (host 3307) y Kafka (hos
 ## Convenciones
 
 - Sin Lombok. Los VOs y los comandos son `record`. Los agregados extienden `RaizAgregado`: cada cambio
-  hace `siguienteVersion()` y `registrar(evento)`.
+  hace `siguienteVersion()` y `registrarEvento(evento)`.
 - Javadoc en el dominio explicando invariantes y el **porqué** de cada regla no obvia; cada paquete de
   `dominio` tiene su `package-info.java` (lo comprueba un test).
 - Tests: `*Test` son unitarios (sin Docker) y `*IT` son de integración (Testcontainers:

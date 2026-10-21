@@ -26,3 +26,22 @@ Convenciones generales de la API pública (a través del gateway). El porqué es
 
 Se documentan, con ejemplos ejecutables en `http/*.http`, en la fase en que se implementan. Cada servicio
 publica además su OpenAPI (F11).
+
+### identidad (`/api/identidad`)
+
+| Método y ruta | Público | Cuerpo | Respuesta | Errores |
+|---|---|---|---|---|
+| `POST /registros` | sí | `{nombre, email, contrasena}` | 201 `{id, nombre, email}` | 400 `VALIDACION`, `EMAIL_INVALIDO`, `NOMBRE_INVALIDO`, `CONTRASENA_INVALIDA`; 409 `EMAIL_YA_REGISTRADO` |
+| `POST /sesiones` | sí | `{email, contrasena}` | 200 `{token, tipo: "Bearer", expiraEnSegundos}` | 401 `CREDENCIALES_INVALIDAS` |
+| `GET /usuarios/yo` | no | — | 200 `{id, nombre, email}` | 401 |
+| `GET /.well-known/jwks.json` | interno | — | JWKS con la clave pública RSA | — |
+
+**El token** (JWT RS256) lleva estos claims:
+- `sub` (id del usuario), `email` y `nombre`;
+- `iss=gastos-identidad` y `aud=gastos-api`;
+- `iat`, `exp` (24 h) y `jti`.
+
+La cabecera incluye `kid`. Un cliente puede leer `nombre` y `email` del propio token sin hacer otra
+petición.
+
+Ejemplos: [`http/identidad.http`](../../http/identidad.http).

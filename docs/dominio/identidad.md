@@ -1,6 +1,6 @@
 # Contexto: identidad
 
-**Tipo:** subdominio genérico · **Servicio:** `servicios/identidad` · **Estado:** diseñado (se implementa en F1)
+**Tipo:** subdominio genérico · **Servicio:** `servicios/identidad` · **Estado:** ✅ implementado (F1)
 
 ## Responsabilidad
 
@@ -45,3 +45,27 @@ Publica la clave pública (JWKS) para que los demás validen los tokens sin comp
 - `POST /sesiones` (público).
 - `GET /usuarios/yo`.
 - `GET /.well-known/jwks.json` (interno; lo consultan el gateway y los servicios).
+
+Hay ejemplos ejecutables en [`http/identidad.http`](../../http/identidad.http).
+
+## Implementación
+
+| Pieza | Clase |
+|---|---|
+| Agregado, VOs y evento | `dominio/usuario/{Usuario, Email, Nombre, ContrasenaEnClaro, HashContrasena, UsuarioRegistrado}` |
+| Casos de uso | `aplicacion/{RegistrarUsuario, IniciarSesion, ConsultarPerfil}` |
+| Puertos de salida | `aplicacion/{CifradorContrasenas, EmisorTokens}` y `dominio/usuario/UsuarioRepositorio` |
+| Adaptadores | `infraestructura/persistencia/UsuarioRepositorioJdbc`, `infraestructura/seguridad/{CifradorBCrypt, EmisorTokensJwt, ClaveFirma}` |
+| Entrada | `infraestructura/rest/{IdentidadController, JwksController, ErroresIdentidad}` |
+| Traducción a contratos | `infraestructura/eventos/TraductorEventosIdentidad` |
+
+**Decisiones de detalle:**
+- **BCrypt fuera de la transacción.** El hash se calcula antes de abrir la unidad de trabajo, porque es
+  lento a propósito y alargaría la transacción.
+- **Unicidad del email en dos niveles.** El caso de uso la comprueba (`existeEmail`) y la base de datos
+  la garantiza ante carreras: `UNIQUE` sobre el email canónico con collation binaria. Si la restricción
+  salta, el adaptador la traduce al mismo 409.
+- **Validación de sus propios tokens.** identidad los valida con su clave pública en memoria
+  (`ConfiguracionSeguridadIdentidad`), sin pedirse el JWKS a sí misma por HTTP. Usa los mismos
+  validadores de emisor y audiencia que el resto de servicios.
+- **Contraseñas largas.** Más de 72 bytes se rechaza, porque BCrypt ignora el resto.

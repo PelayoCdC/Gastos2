@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+		 xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<parent>
+		<groupId>es.gastos</groupId>
+		<artifactId>gastos2</artifactId>
+		<version>0.1.0-SNAPSHOT</version>
+		<relativePath>../../pom.xml</relativePath>
+	</parent>
+
+	<artifactId>contratos</artifactId>
+	<name>Gastos2 :: Contratos de integración</name>
+	<description>
+		Lenguaje publicado (DDD) entre servicios: eventos de integración versionados, sobre común,
+		nombres de topics y DTOs de la API interna. Solo records del JDK: sin Jackson ni Spring, para
+		que el contrato no dependa de la tecnología de serialización. Ver docs/eventos/catalogo.md.
+	</description>
+
+	<dependencies>
+		<dependency>
+			<groupId>org.junit.jupiter</groupId>
+			<artifactId>junit-jupiter</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.assertj</groupId>
+			<artifactId>assertj-core</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<!-- Tests de contrato: serializar cada evento y compararlo con su muestra JSON aprobada -->
+		<dependency>
+			<groupId>tools.jackson.core</groupId>
+			<artifactId>jackson-databind</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>es.gastos</groupId>
+			<artifactId>pruebas</artifactId>
+			<scope>test</scope>
+		</dependency>
+	</dependencies>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-enforcer-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>contratos-sin-frameworks</id>
+						<goals>
+							<goal>enforce</goal>
+						</goals>
+						<configuration>
+							<rules>
+								<bannedDependencies>
+									<excludes>
+										<exclude>org.springframework*:*:*:*:compile</exclude>
+										<exclude>org.springframework*:*:*:*:runtime</exclude>
+										<exclude>tools.jackson*:*:*:*:compile</exclude>
+										<exclude>com.fasterxml*:*:*:*:compile</exclude>
+										<exclude>org.projectlombok</exclude>
+									</excludes>
+									<searchTransitive>true</searchTransitive>
+								</bannedDependencies>
+							</rules>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+		</plugins>
+	</build>
+</project>

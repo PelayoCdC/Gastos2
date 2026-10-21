@@ -15,8 +15,8 @@ en los [ADR](../adr/README.md).
 | Fase | Contenido | Estado |
 |---|---|---|
 | F0 | Fundaciones: monorepo, kernel, soporte de pruebas, compose, documentación base, spikes | ✅ Terminada |
-| F1 | identidad + compartido/web y compartido/mensajeria (outbox, relay, inbox) | En curso |
-| F2 | gateway | Pendiente |
+| F1 | identidad + compartido/web y compartido/mensajeria (outbox, relay, inbox) | ✅ Terminada |
+| F2 | gateway | En curso |
 | F3 | movimientos A: cuentas, documentos, transacciones manuales | Pendiente |
 | F4 | movimientos B: registrar extracto, duplicados por conteo | Pendiente |
 | F5 | clasificacion A: catálogo, prioridad, siembra, borrados | Pendiente |
@@ -119,3 +119,71 @@ en los [ADR](../adr/README.md).
   - 2 IT de spike con MariaDB y Kafka reales.
 - `docker compose up -d mariadb kafka --wait`: los dos *healthy*. MariaDB tiene las 5 bases de datos
   (`identidad`, `movimientos`, `clasificacion`, `importacion`, `consultas`) y sus 5 usuarios.
+
+---
+
+## F1 · identidad y piezas compartidas de web y mensajería (2026-10-21)
+
+### Qué se hizo
+
+- **`compartido/contratos`**, el lenguaje publicado, solo con records del JDK:
+  - `Sobre`, `Topics`, `EventoIntegracion` y `CatalogoEventos` (tipo y versión → clase y topic);
+  - el primer evento, `identidad.v1.UsuarioRegistrado`.
+  - **Tests de contrato:** cada evento tiene una muestra JSON aprobada que el record debe leer y escribir
+    igual. Un test de documentación viva exige que cada evento aparezca en `docs/eventos/catalogo.md`.
+- **`compartido/web`** (autoconfiguración):
+  - resource server JWT con JWKS y validación de emisor y audiencia (`SeguridadAutoConfiguracion`);
+  - `@UsuarioActual`;
+  - errores RFC 9457 con `codigo` (`ManejadorErrores`);
+  - `Clock` (Europe/Madrid) y `GeneradorIds` (UUIDv7) por defecto.
+- **`compartido/mensajeria`** (autoconfiguración):
+  - `UnidadDeTrabajoTransaccional`;
+  - `PublicadorEventosOutbox`, que exige una transacción activa y despierta al relay tras el commit;
+  - `RelayOutbox`, con un hilo propio, envío por lotes con `SKIP LOCKED`, clave = usuario y limpieza
+    horaria;
+  - `Inbox` y `LectorSobres` (lector tolerante);
+  - topic propio con retención infinita, DLT por servicio con `DefaultErrorHandler`, y las migraciones
+    Flyway compartidas (`db/compartido` V0_1 outbox, V0_2 inbox) que se añaden solas a las de cada
+    servicio.
+- **`servicios/identidad`:**
+  - dominio `Usuario` con los VOs `Email` (canónico), `Nombre`, `ContrasenaEnClaro` y `HashContrasena`;
+  - casos de uso `RegistrarUsuario`, `IniciarSesion` y `ConsultarPerfil`;
+  - adaptadores JdbcClient, BCrypt y JWT RS256 (`ClaveFirma` lee el PEM PKCS#8, con `kid` = huella
+    RFC 7638);
+  - JWKS, `TraductorEventosIdentidad` y Flyway V1.
+- **Infraestructura:**
+  - `Dockerfile` multi-etapa (build común con caché de `.m2`, un target por servicio);
+  - servicio `identidad` en `compose.yaml` con healthcheck y puerto solo en localhost;
+  - `scripts/generar-claves-dev.sh`;
+  - `http/identidad.http`.
+
+### Decisiones y desviaciones
+
+- **`RaizAgregado.registrar(evento)` → `registrarEvento(evento)`.** Chocaba con la factoría de dominio
+  `Usuario.registrar(...)`: "registrar" es lenguaje del negocio.
+- **DLT por servicio consumidor** (`<servicio>.dlt`) en vez de uno por topic de origen (`<topic>-dlt`,
+  como decía el plan). Varios consumidores del mismo topic necesitan DLT independientes, y las cabeceras
+  de Spring ya indican el topic original. Actualizado en el catálogo de eventos.
+- **El outbox guarda los campos del sobre en columnas** y los `datos` como JSON. El relay compone el
+  sobre al enviar, así que la `secuencia` es el id del outbox sin tener que actualizar la fila.
+- **401 de credenciales:** `CredencialesInvalidas` es una `ExcepcionDominio` que traduce a 401 un
+  `@RestControllerAdvice` propio de identidad con prioridad máxima. El manejador común no conoce el
+  concepto de autenticación.
+- **Validación de los propios tokens:** identidad los valida con su clave pública en memoria (un
+  `JwtDecoder` propio), en vez de pedirse el JWKS a sí misma.
+
+### Verificación
+
+- `./mvnw verify` en verde:
+  - unitarios de kernel, contratos, mensajería e identidad;
+  - IT: `OutboxIT`, que publica, comprueba el rollback, publicar sin transacción y la idempotencia del
+    inbox;
+  - IT: `IdentidadApiIT`, que cubre registro, 409, 400, 401, JWKS sin parte privada y el evento en Kafka;
+  - ArchUnit y documentación viva.
+- **Smoke** con `docker compose up -d --build --wait identidad` y curl contra `localhost:8081`:
+  - registro → 201;
+  - duplicado → 409 `application/problem+json` con `codigo: EMAIL_YA_REGISTRADO`;
+  - el token decodificado lleva `iss`, `aud`, `sub`, `email`, `nombre`, `jti` y `kid`;
+  - `/usuarios/yo` → 200, y 401 sin token;
+  - `kafka-console-consumer` muestra el sobre de `UsuarioRegistrado` con clave = usuario;
+  - `identidad.eventos` tiene 3 particiones y `retention.ms=-1`.
