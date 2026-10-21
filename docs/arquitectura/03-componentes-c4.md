@@ -52,7 +52,7 @@ flowchart LR
 | Servicio | Sección | Fase |
 |---|---|---|
 | identidad | [identidad](#identidad) | F1 ✅ |
-| gateway | (pendiente) | F2 |
+| gateway | [gateway](#gateway) | F2 ✅ |
 | movimientos | (pendiente) | F3–F4 |
 | clasificacion | (pendiente) | F5–F6 |
 | importacion | (pendiente) | F7 |
@@ -98,3 +98,24 @@ flowchart LR
 Los puertos de salida (óvalos) los define el núcleo y los implementan los adaptadores. La traducción
 del evento de dominio al contrato `identidad.v1.UsuarioRegistrado` ocurre en la infraestructura: el
 dominio no conoce el lenguaje publicado.
+
+## gateway
+
+No tiene capas de dominio ni de aplicación: es infraestructura pura y está configurado de forma
+declarativa ([ADR 0019](../adr/0019-gateway-webflux.md)).
+
+```mermaid
+flowchart LR
+    nav["Navegador / front"] --> cors["CORS<br/>(solo orígenes permitidos)"]
+    cors --> seg["SeguridadGateway<br/>/api/*/internal/** → 403<br/>registro y sesión públicos<br/>resto: JWT válido (JWKS, iss, aud)"]
+    seg --> tam["RequestSize 10 MB → 413"]
+    tam --> rutas["Rutas /api/{ctx}/** → /** del servicio<br/>(RewritePath, conserva Authorization)"]
+    rutas --> svc["identidad · movimientos · clasificacion · importacion · consultas"]
+    rutas -. "servicio inalcanzable" .-> err["ErroresGateway → 503 problem+json"]
+```
+
+| Pieza | Responsabilidad |
+|---|---|
+| `application.yaml` | Rutas por contexto, filtro `RequestSize` por defecto y URL de cada servicio (`gastos.servicios.*`) |
+| `SeguridadGateway` | `SecurityWebFilterChain` reactiva, decodificador JWT con JWKS + emisor + audiencia, CORS |
+| `ErroresGateway` | Convierte "no se puede conectar con el servicio" en 503 RFC 9457 `SERVICIO_NO_DISPONIBLE` |

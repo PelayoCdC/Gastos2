@@ -83,6 +83,25 @@ services:
       start_period: 40s
       retries: 10
 
+  gateway:
+    build:
+      context: .
+      target: gateway
+    environment:
+      GASTOS_SERVICIOS_IDENTIDAD: http://identidad:8080
+      GASTOS_SERVICIOS_MOVIMIENTOS: http://movimientos:8080
+      GASTOS_SERVICIOS_CLASIFICACION: http://clasificacion:8080
+      GASTOS_SERVICIOS_IMPORTACION: http://importacion:8080
+      GASTOS_SERVICIOS_CONSULTAS: http://consultas:8080
+    ports:
+      # Única entrada desde fuera (el front en el navegador habla con este puerto)
+      - "8090:8080"
+    depends_on:
+      identidad:
+        condition: service_healthy
+    mem_limit: 384m
+    healthcheck: *salud-spring
+
 volumes:
   datos-mariadb:
   # El log de Kafka es la fuente para reconstruir las proyecciones de consultas: hay que respaldarlo

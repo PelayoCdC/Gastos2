@@ -1,0 +1,66 @@
+# Rutas: /api/{contexto}/** se reescribe a /** en el servicio del contexto (docs/adr/0009).
+# Las URL de los servicios apuntan a localhost para ejecutar en el IDE; en compose se sobrescriben.
+server:
+  port: 8090
+
+gastos:
+  servicios:
+    identidad: http://localhost:8081
+    movimientos: http://localhost:8082
+    clasificacion: http://localhost:8083
+    importacion: http://localhost:8084
+    consultas: http://localhost:8085
+  gateway:
+    jwk-set-uri: ${gastos.servicios.identidad}/.well-known/jwks.json
+    origenes-permitidos:
+      - http://localhost:4200
+
+spring:
+  application:
+    name: gateway
+  cloud:
+    gateway:
+      server:
+        webflux:
+          default-filters:
+            # Extractos de hasta 10 MB; más grande se rechaza aquí con 413 sin llegar al servicio
+            - name: RequestSize
+              args:
+                maxSize: 10MB
+          routes:
+            - id: identidad
+              uri: ${gastos.servicios.identidad}
+              predicates:
+                - Path=/api/identidad/**
+              filters:
+                - RewritePath=/api/identidad/(?<resto>.*), /$\{resto}
+            - id: movimientos
+              uri: ${gastos.servicios.movimientos}
+              predicates:
+                - Path=/api/movimientos/**
+              filters:
+                - RewritePath=/api/movimientos/(?<resto>.*), /$\{resto}
+            - id: clasificacion
+              uri: ${gastos.servicios.clasificacion}
+              predicates:
+                - Path=/api/clasificacion/**
+              filters:
+                - RewritePath=/api/clasificacion/(?<resto>.*), /$\{resto}
+            - id: importacion
+              uri: ${gastos.servicios.importacion}
+              predicates:
+                - Path=/api/importacion/**
+              filters:
+                - RewritePath=/api/importacion/(?<resto>.*), /$\{resto}
+            - id: consultas
+              uri: ${gastos.servicios.consultas}
+              predicates:
+                - Path=/api/consultas/**
+              filters:
+                - RewritePath=/api/consultas/(?<resto>.*), /$\{resto}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

@@ -16,8 +16,8 @@ en los [ADR](../adr/README.md).
 |---|---|---|
 | F0 | Fundaciones: monorepo, kernel, soporte de pruebas, compose, documentación base, spikes | ✅ Terminada |
 | F1 | identidad + compartido/web y compartido/mensajeria (outbox, relay, inbox) | ✅ Terminada |
-| F2 | gateway | En curso |
-| F3 | movimientos A: cuentas, documentos, transacciones manuales | Pendiente |
+| F2 | gateway | ✅ Terminada |
+| F3 | movimientos A: cuentas, documentos, transacciones manuales | En curso |
 | F4 | movimientos B: registrar extracto, duplicados por conteo | Pendiente |
 | F5 | clasificacion A: catálogo, prioridad, siembra, borrados | Pendiente |
 | F6 | clasificacion B: motor, automática, propagación, masiva | Pendiente |
@@ -187,3 +187,51 @@ en los [ADR](../adr/README.md).
   - `/usuarios/yo` → 200, y 401 sin token;
   - `kafka-console-consumer` muestra el sobre de `UsuarioRegistrado` con clave = usuario;
   - `identidad.eventos` tiene 3 particiones y `retention.ms=-1`.
+
+---
+
+## F2 · gateway (2026-10-21)
+
+### Qué se hizo
+
+- **`servicios/gateway`**, con Spring Cloud Gateway Server WebFlux 5.0.3 (tren 2025.1.3):
+  - rutas `/api/{identidad|movimientos|clasificacion|importacion|consultas}/**` con `RewritePath` a `/**`;
+  - filtro por defecto `RequestSize` de 10 MB;
+  - URL de los servicios configurables (`gastos.servicios.*`).
+- **`SeguridadGateway`:**
+  - `SecurityWebFilterChain` reactiva: `/api/*/internal/**` con `denyAll` (antes que nada), preflight
+    `OPTIONS` y registro e inicio de sesión públicos, y el resto con JWT;
+  - decodificador con el JWKS de identidad más los validadores de emisor y audiencia;
+  - CORS solo para los orígenes configurados (por defecto `http://localhost:4200`), exponiendo
+    `Location`, `Content-Disposition`, `Gastos-Secuencia` y `Gastos-Desfase`.
+- **`ErroresGateway`:** un servicio inalcanzable (conexión rechazada, host desconocido o timeout de
+  conexión) da 503 `problem+json` con `codigo: SERVICIO_NO_DISPONIBLE`.
+- **Despliegue:** target `gateway` en el `Dockerfile` y servicio en compose, publicado en el **8090**.
+
+### Decisiones
+
+- **El gateway no depende de `compartido/web` ni del kernel**: `web` es servlet y aquí no hay dominio. Los
+  validadores de emisor y audiencia se duplican (unas pocas líneas) en vez de crear un módulo reactivo
+  compartido.
+- **Las rutas internas se bloquean en la capa de seguridad** (`denyAll` → 403 aunque haya token), no con
+  una ruta que no lleve a ninguna parte. Así no dependen del orden de las rutas.
+- **Un servicio caído da 503 y no 500** (no estaba en el plan). Lo pedía la coherencia con los errores
+  RFC 9457, y le dice al cliente que puede reintentar.
+
+### Verificación
+
+- **`GatewayIT`** (7 tests) contra un servicio simulado con `HttpServer` del JDK, que publica un JWKS
+  con una clave RSA generada en el test:
+  - con token: enruta quitando el prefijo y conserva `Authorization`;
+  - 401 sin token, con otra audiencia o con otro emisor, sin llegar al servicio;
+  - registro y sesión públicos;
+  - `/internal` → 403 con token y sin llegar al servicio;
+  - preflight CORS permitido para el front y 403 para otro origen;
+  - 413 con más de 10 MB;
+  - 503 `problem+json` si el servicio no responde.
+- **Smoke en compose** (`gateway` → `identidad` reales):
+  - registro → 201 y sesión con token;
+  - `/api/identidad/usuarios/yo` → 200 con token y 401 sin él;
+  - `/api/movimientos/internal/extractos` con token → 403;
+  - `/api/movimientos/cuentas` (servicio aún sin desplegar) → 503 `SERVICIO_NO_DISPONIBLE`;
+  - preflight desde `localhost:4200` → 200 con `Access-Control-Allow-Origin`.

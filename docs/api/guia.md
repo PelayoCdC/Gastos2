@@ -45,3 +45,13 @@ La cabecera incluye `kid`. Un cliente puede leer `nombre` y `email` del propio t
 petición.
 
 Ejemplos: [`http/identidad.http`](../../http/identidad.http).
+
+### Errores propios del gateway
+
+| Situación | Estado | `codigo` |
+|---|---|---|
+| Sin token o token inválido (firma, caducidad, emisor o audiencia) | 401 (cuerpo vacío, cabecera `WWW-Authenticate`) | — |
+| Ruta interna (`/api/*/internal/**`) | 403 | — |
+| Cuerpo de más de 10 MB | 413 | — |
+| Servicio de destino inalcanzable | 503 `application/problem+json` | `SERVICIO_NO_DISPONIBLE` |
+| Origen no permitido en un preflight CORS | 403 | — |

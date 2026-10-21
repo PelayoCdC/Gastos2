@@ -23,3 +23,6 @@ ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-jar", "app.jar", "--server.port
 
 FROM base AS identidad
 COPY --from=build /src/servicios/identidad/target/identidad.jar app.jar
+
+FROM base AS gateway
+COPY --from=build /src/servicios/gateway/target/gateway.jar app.jar

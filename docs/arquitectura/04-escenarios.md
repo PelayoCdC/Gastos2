@@ -6,7 +6,7 @@ código) en la fase en que se implementa.
 | Escenario | Fase | Estado |
 |---|---|---|
 | [Registro de usuario y publicación del evento](#41-registro-de-usuario) | F1 | ✅ |
-| [Inicio de sesión y petición autenticada](#42-inicio-de-sesión-y-petición-autenticada) | F1 (directo) / F2 (gateway) | ✅ directo |
+| [Inicio de sesión y petición autenticada](#42-inicio-de-sesión-y-petición-autenticada) | F1 (directo) / F2 (gateway) | ✅ |
 | Siembra del catálogo al registrarse | F5 | pendiente |
 | Importación de un extracto (importacion → movimientos → clasificación automática → consultas) | F7 | pendiente |
 | Crear y clasificar una transacción a mano (dos servicios, *read-through*) | F6 | pendiente |
@@ -72,3 +72,24 @@ sequenceDiagram
 
 A partir de F2, el usuario habla con el gateway, que valida el token antes de enrutar. Los servicios lo
 vuelven a validar como defensa en profundidad.
+
+### A través del gateway (F2)
+
+```mermaid
+sequenceDiagram
+    actor U as Front
+    participant G as gateway :8090
+    participant I as identidad
+    participant S as servicio del contexto
+    U->>G: POST /api/identidad/sesiones (público)
+    G->>I: POST /sesiones
+    I-->>U: token
+    U->>G: GET /api/movimientos/cuentas + Bearer
+    G->>I: JWKS (cacheado)
+    G->>G: valida firma, exp, iss, aud
+    G->>S: GET /cuentas + Bearer (mismo token)
+    S->>S: vuelve a validar (defensa en profundidad)
+    S-->>U: 200
+    U->>G: POST /api/movimientos/internal/extractos + Bearer
+    G-->>U: 403 (lo interno nunca sale)
+```
