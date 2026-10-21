@@ -11,13 +11,17 @@ import es.gastos.movimientos.dominio.transaccion.Transaccion;
 import es.gastos.movimientos.dominio.transaccion.TransaccionId;
 import es.gastos.movimientos.dominio.transaccion.TransaccionRepositorio;
 import org.springframework.jdbc.core.RowMapper;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.core.namedparam.SqlParameterSourceUtils;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Repository
@@ -47,8 +51,11 @@ class TransaccionRepositorioJdbc implements TransaccionRepositorio {
 
 	private final JdbcClient jdbc;
 
-	TransaccionRepositorioJdbc(JdbcClient jdbc) {
+	private final NamedParameterJdbcTemplate plantilla;
+
+	TransaccionRepositorioJdbc(JdbcClient jdbc, NamedParameterJdbcTemplate plantilla) {
 		this.jdbc = jdbc;
+		this.plantilla = plantilla;
 	}
 
 	@Override
@@ -125,6 +132,49 @@ class TransaccionRepositorioJdbc implements TransaccionRepositorio {
 	public int eliminarDeDocumento(DocumentoId documento) {
 		return this.jdbc.sql("DELETE FROM transaccion WHERE documento_id = :documento")
 				.param("documento", documento.valor()).update();
+	}
+
+	@Override
+	public void insertarTodas(List<Transaccion> nuevas) {
+		if (nuevas.isEmpty()) {
+			return;
+		}
+		Map<String, Object>[] lote = nuevas.stream().map(TransaccionRepositorioJdbc::parametros).toArray(Map[]::new);
+		this.plantilla.batchUpdate("INSERT INTO transaccion (" + COLUMNAS + ") VALUES (:id, :usuario, :cuenta, :documento,"
+				+ " :fechaContable, :fechaValor, :concepto, :nota, :importe, :saldo, :orden, :ordenDocumento, :origen, :clave, :version)",
+				SqlParameterSourceUtils.createBatch(lote));
+	}
+
+	@Override
+	public Map<ClaveDuplicado, Long> contarClaves(UsuarioId usuario, CuentaId cuenta, Set<ClaveDuplicado> claves) {
+		if (claves.isEmpty()) {
+			return Map.of();
+		}
+		Map<ClaveDuplicado, Long> conteo = new HashMap<>();
+		this.jdbc.sql("""
+						SELECT clave_duplicado, COUNT(*) AS veces FROM transaccion
+						WHERE usuario_id = :usuario AND (cuenta_id = :cuenta OR cuenta_id IS NULL) AND clave_duplicado IN (:claves)
+						GROUP BY clave_duplicado
+						""")
+				.param("usuario", usuario.valor())
+				.param("cuenta", cuenta.valor())
+				.param("claves", claves.stream().map(ClaveDuplicado::valor).toList())
+				.query(rs -> {
+					conteo.put(new ClaveDuplicado(rs.getString("clave_duplicado")), rs.getLong("veces"));
+				});
+		return conteo;
+	}
+
+	@Override
+	public List<Transaccion> buscarVarias(UsuarioId usuario, Collection<TransaccionId> ids) {
+		if (ids.isEmpty()) {
+			return List.of();
+		}
+		return this.jdbc.sql("SELECT " + COLUMNAS + " FROM transaccion WHERE usuario_id = :usuario AND id IN (:ids)")
+				.param("usuario", usuario.valor())
+				.param("ids", ids.stream().map(TransaccionId::valor).toList())
+				.query(MAPEO)
+				.list();
 	}
 
 	@Override

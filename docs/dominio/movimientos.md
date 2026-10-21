@@ -1,6 +1,6 @@
 # Contexto: movimientos
 
-**Tipo:** subdominio de soporte · **Servicio:** `servicios/movimientos` · **Estado:** ✅ cuentas, documentos y transacciones manuales (F3) · importación de extractos en F4
+**Tipo:** subdominio de soporte · **Servicio:** `servicios/movimientos` · **Estado:** ✅ implementado (F3 cuentas, documentos y transacciones manuales · F4 registro de extractos)
 
 ## Responsabilidad
 
@@ -114,3 +114,31 @@ Ejemplos: [`http/movimientos.http`](../../http/movimientos.http).
 - **Casos de uso agrupados.** Los de CRUD simple de un mismo agregado se agrupan en una clase
   `Gestion<X>`. Los que tienen una política propia van en su clase, como `EliminarCuenta` con su
   cascada. Ver la [guía de desarrollo](../proceso/guia-de-desarrollo.md#convenciones).
+
+## API interna (F4): solo entre servicios; el gateway la bloquea
+
+Todas las llamadas llevan el JWT del usuario, reenviado por el servicio que llama.
+
+| Método y ruta | Quién la usa | Descripción |
+|---|---|---|
+| `POST /internal/extractos` | importacion | `{extractoId, cuentaId, nombre?, nombreArchivo, lineas:[{fila, fechaContable, fechaValor?, concepto, importe, saldo?}]}` → 201 `{documentoId, nombreDocumento, nombreArchivo, importadas, duplicados:[{fila, fechaContable, concepto, importe}]}`. Es idempotente por `extractoId`; una cuenta ajena da 404 |
+| `GET /internal/transacciones/{id}` | clasificacion (*read-through*) | Hechos de la transacción (incluye `documentoId`, `concepto` y `origen`); 404 si no es del usuario |
+| `POST /internal/transacciones/consulta` | clasificacion | `{ids:[...]}` → las del usuario; las ajenas o inexistentes se omiten |
+
+## Implementación del registro de extractos (F4)
+
+`aplicacion/extractos/RegistrarExtracto`, en una unidad de trabajo:
+1. **Bloquea la cuenta** (`SELECT ... FOR UPDATE`) y comprueba que es del usuario. Así, dos
+   importaciones simultáneas en la misma cuenta se ejecutan una detrás de otra.
+2. **Idempotencia.** Si ya existe el documento con id = `extractoId`, devuelve el `resultado_registro`
+   guardado (`CodificadorResultados`) sin tocar nada.
+3. **Duplicados.** Cuenta las claves existentes en el ámbito, que son la cuenta destino más las
+   transacciones sin cuenta (`TransaccionRepositorio.contarClaves`), y separa las filas con
+   `DetectorDuplicados` (por conteo, [ADR 0015](../adr/0015-duplicados-por-conteo.md)).
+4. **Documento.** Crea el `Documento`, que publica `DocumentoRegistrado`. Su nombre es el `nombre`
+   indicado o, si no se indica, el del fichero.
+5. **Transacciones.** Inserta las nuevas por lotes (`insertarTodas`) con `orden` = fila y
+   `ordenDocumento` = 1..N, y publica un `TransaccionRegistrada` por cada una, con origen IMPORTACION.
+
+El documento se crea aunque no haya ninguna fila nueva, como en el back antiguo. Así queda constancia
+de la importación y de sus duplicados.

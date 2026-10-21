@@ -97,6 +97,13 @@ public class GestionTransacciones {
 		return this.unidadDeTrabajo.ejecutarLectura(() -> DatosTransaccion.de(this.propia(usuario, id)));
 	}
 
+	/** Las transacciones del usuario de entre esos ids; las ajenas o inexistentes se omiten sin error. */
+	public java.util.List<DatosTransaccion> consultarVarias(UsuarioId usuario, java.util.Collection<TransaccionId> ids) {
+		return this.unidadDeTrabajo.ejecutarLectura(() -> this.transacciones.buscarVarias(usuario, ids).stream()
+				.map(DatosTransaccion::de)
+				.toList());
+	}
+
 	private Transaccion propia(UsuarioId usuario, TransaccionId id) {
 		return Propiedad.exigir(this.transacciones.buscar(id), usuario, "la transaccion", id);
 	}

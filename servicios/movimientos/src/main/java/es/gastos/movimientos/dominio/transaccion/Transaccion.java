@@ -52,6 +52,21 @@ public final class Transaccion extends RaizAgregado<TransaccionId> {
 		return transaccion;
 	}
 
+	/**
+	 * Transacción que nace de una fila de extracto: conserva la fila como {@code orden} (desempata
+	 * movimientos del mismo día) y su posición entre las filas aceptadas como {@code ordenDocumento}.
+	 */
+	public static Transaccion desdeLineaExtracto(TransaccionId id, UsuarioId propietario, CuentaId cuentaId,
+			DocumentoId documentoId, LineaExtracto linea, int ordenDocumento) {
+		Objects.requireNonNull(cuentaId);
+		Objects.requireNonNull(documentoId);
+		Datos datos = new Datos(id, cuentaId, documentoId, linea.fechaContable(), linea.fechaValor(), linea.concepto(), null,
+				linea.importe(), linea.saldo(), linea.fila(), ordenDocumento, Origen.IMPORTACION, linea.clave());
+		Transaccion transaccion = new Transaccion(propietario, datos, 0);
+		transaccion.registrarEvento(new TransaccionRegistrada(propietario, transaccion.siguienteVersion(), datos));
+		return transaccion;
+	}
+
 	public static Transaccion reconstituir(UsuarioId propietario, Datos datos, long version) {
 		return new Transaccion(propietario, datos, version);
 	}

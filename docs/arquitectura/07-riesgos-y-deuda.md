@@ -8,7 +8,7 @@
 | Consistencia eventual visible en la interfaz | Datos viejos tras guardar | `Gastos-Esperar` ([ADR 0011](../adr/0011-leer-lo-que-acabas-de-escribir.md)) | Abierto (F8) |
 | Pérdida del volumen de Kafka | No se podría reconstruir `consultas` | Respaldo del volumen; `republicar-estado` (F11) | Abierto |
 | Hueco de orden entre commits del outbox | Un evento podría adelantar a otro anterior | Versiones por agregado en los consumidores | Aceptado |
-| Memoria (6 JVM + MariaDB + Kafka) | Portátil justo de recursos | Límites por contenedor; medir en F11 | Abierto |
+| Memoria (6 JVM + MariaDB + Kafka, más los contenedores de Testcontainers durante `verify`) | Portátil justo de recursos: en F4 una JVM de test murió por falta de memoria nativa | JVM de test acotadas (`argLine` con `-Xmx768m`, C1 y SerialGC); parar los servicios de compose durante `verify`; límites por contenedor; medir en F11 | Mitigado |
 | Windows: finales de línea, *named pipe* de Docker, zona horaria | Fallos difíciles de reproducir | `.gitattributes`; Testcontainers 2; `Clock` con zona explícita | Abierto |
 
 ## Deuda técnica asumida

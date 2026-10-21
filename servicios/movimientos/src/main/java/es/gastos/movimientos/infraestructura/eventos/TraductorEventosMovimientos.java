@@ -6,6 +6,7 @@ import es.gastos.contratos.movimientos.v1.CuentaEliminada;
 import es.gastos.contratos.movimientos.v1.CuentaGuardada;
 import es.gastos.contratos.movimientos.v1.DocumentoEliminado;
 import es.gastos.contratos.movimientos.v1.DocumentoReasignado;
+import es.gastos.contratos.movimientos.v1.DocumentoRegistrado;
 import es.gastos.contratos.movimientos.v1.DocumentoRenombrado;
 import es.gastos.contratos.movimientos.v1.TransaccionCorregida;
 import es.gastos.contratos.movimientos.v1.TransaccionEliminada;
@@ -31,6 +32,8 @@ class TraductorEventosMovimientos implements TraductorEventos {
 			case es.gastos.movimientos.dominio.cuenta.CuentaGuardada e ->
 					new CuentaGuardada(e.cuentaId().valor(), e.nombre().valor(), e.banco(), e.descripcion());
 			case es.gastos.movimientos.dominio.cuenta.CuentaEliminada e -> new CuentaEliminada(e.cuentaId().valor());
+			case es.gastos.movimientos.dominio.documento.DocumentoRegistrado e -> new DocumentoRegistrado(e.documentoId().valor(),
+					cuenta(e.cuentaId()), e.nombre().valor(), e.nombreArchivo(), e.fecha());
 			case es.gastos.movimientos.dominio.documento.DocumentoRenombrado e ->
 					new DocumentoRenombrado(e.documentoId().valor(), e.nombre().valor());
 			case es.gastos.movimientos.dominio.documento.DocumentoReasignado e ->

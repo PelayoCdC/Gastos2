@@ -36,6 +36,20 @@ public final class Documento extends RaizAgregado<DocumentoId> {
 		this.resultadoRegistro = resultadoRegistro;
 	}
 
+	/**
+	 * Registra la importación de un extracto. El {@code id} lo genera el cliente (importacion) antes de
+	 * llamar y sirve de clave de idempotencia; {@code resultadoRegistro} guarda la respuesta para poder
+	 * devolver exactamente lo mismo si la llamada se reintenta.
+	 */
+	public static Documento registrar(DocumentoId id, UsuarioId propietario, CuentaId cuentaId, NombreDocumento nombre,
+			String nombreArchivo, LocalDate fecha, String resultadoRegistro) {
+		Objects.requireNonNull(cuentaId, "Un extracto siempre se importa en una cuenta");
+		Documento documento = new Documento(id, propietario, cuentaId, nombre, nombreArchivo, fecha, resultadoRegistro, 0);
+		documento.registrarEvento(new DocumentoRegistrado(id, propietario, documento.siguienteVersion(), cuentaId, nombre,
+				nombreArchivo, fecha));
+		return documento;
+	}
+
 	/** {@code cuentaId} solo puede ser nulo en documentos migrados del back antiguo. */
 	public static Documento reconstituir(DocumentoId id, UsuarioId propietario, CuentaId cuentaId, NombreDocumento nombre,
 			String nombreArchivo, LocalDate fecha, String resultadoRegistro, long version) {

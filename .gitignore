@@ -4,6 +4,7 @@ target/
 .vscode/
 *.log
 hs_err_pid*
+replay_pid*
 
 # Claves RSA de desarrollo: se generan con scripts/generar-claves-dev.sh
 infra/claves/*.pem

@@ -8,7 +8,8 @@ código) en la fase en que se implementa.
 | [Registro de usuario y publicación del evento](#41-registro-de-usuario) | F1 | ✅ |
 | [Inicio de sesión y petición autenticada](#42-inicio-de-sesión-y-petición-autenticada) | F1 (directo) / F2 (gateway) | ✅ |
 | Siembra del catálogo al registrarse | F5 | pendiente |
-| Importación de un extracto (importacion → movimientos → clasificación automática → consultas) | F7 | pendiente |
+| [Registro de un extracto en movimientos](#43-registro-de-un-extracto-en-movimientos) | F4 | ✅ (la parte de importacion llega en F7) |
+| Importación de un extracto de punta a punta (importacion → movimientos → clasificación automática → consultas) | F7 | pendiente |
 | Crear y clasificar una transacción a mano (dos servicios, *read-through*) | F6 | pendiente |
 | Leer lo que acabas de escribir (`Gastos-Secuencia` / `Gastos-Esperar`) | F8 | pendiente |
 | Borrar una categoría usada por etiquetas y transacciones | F5 | pendiente |
@@ -93,3 +94,35 @@ sequenceDiagram
     U->>G: POST /api/movimientos/internal/extractos + Bearer
     G-->>U: 403 (lo interno nunca sale)
 ```
+
+## 4.3 Registro de un extracto en movimientos
+
+```mermaid
+sequenceDiagram
+    participant I as importacion (cliente)
+    participant M as RegistrarExtracto
+    participant DB as MariaDB (movimientos)
+    participant O as outbox
+    I->>M: POST /internal/extractos {extractoId, cuentaId, lineas} + JWT del usuario
+    rect rgb(235, 245, 255)
+    Note over M,O: una transacción
+    M->>DB: SELECT cuenta FOR UPDATE (serializa importaciones en la cuenta)
+    M->>DB: ¿existe documento extractoId?
+    alt ya registrado (reintento)
+        M-->>I: resultado guardado (mismo JSON)
+    else nuevo
+        M->>DB: contar claves (cuenta destino + sin cuenta)
+        M->>M: DetectorDuplicados.separar (por conteo)
+        M->>DB: INSERT documento (con el resultado)
+        M->>O: DocumentoRegistrado
+        M->>DB: INSERT transacciones nuevas (lote)
+        M->>O: TransaccionRegistrada x N (origen IMPORTACION)
+        M-->>I: 201 {importadas, duplicados[fila...]}
+    end
+    end
+```
+
+**Por qué es seguro reintentar.** Si la respuesta se pierde por un timeout, importacion repite la
+llamada con el mismo `extractoId` y recibe el mismo resultado; nada se importa dos veces. Si dos
+importaciones distintas del mismo fichero llegan a la vez, el bloqueo de la cuenta hace que la segunda
+vea las filas de la primera como duplicadas (lo comprueba `ExtractosIT`).

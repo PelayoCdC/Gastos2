@@ -18,8 +18,8 @@ en los [ADR](../adr/README.md).
 | F1 | identidad + compartido/web y compartido/mensajeria (outbox, relay, inbox) | ✅ Terminada |
 | F2 | gateway | ✅ Terminada |
 | F3 | movimientos A: cuentas, documentos, transacciones manuales | ✅ Terminada |
-| F4 | movimientos B: registrar extracto, duplicados por conteo | En curso |
-| F5 | clasificacion A: catálogo, prioridad, siembra, borrados | Pendiente |
+| F4 | movimientos B: registrar extracto, duplicados por conteo | ✅ Terminada |
+| F5 | clasificacion A: catálogo, prioridad, siembra, borrados | En curso |
 | F6 | clasificacion B: motor, automática, propagación, masiva | Pendiente |
 | F7 | importacion: formatos, lectura Excel/CSV, importar | Pendiente |
 | F8 | consultas A: proyecciones, rejilla, xlsx, leer lo que acabas de escribir | Pendiente |
@@ -302,3 +302,62 @@ en los [ADR](../adr/README.md).
   - borrar sin cascada → 409, y con cascada → 204;
   - `movimientos.eventos` con `CuentaGuardada`, `TransaccionRegistrada`, `TransaccionEliminada` y
     `CuentaEliminada`, en ese orden.
+
+---
+
+## F4 · movimientos B: registro de extractos y duplicados por conteo (2026-10-21)
+
+### Qué se hizo
+
+- **Dominio:**
+  - `LineaExtracto`, el lenguaje limpio que llega de importacion;
+  - `DetectorDuplicados`, un servicio de dominio puro que separa por conteo de claves;
+  - `Documento.registrar(...)` con su evento `DocumentoRegistrado`;
+  - `Transaccion.desdeLineaExtracto(...)`, con origen IMPORTACION, orden = fila y `ordenDocumento` 1..N.
+- **Aplicación:**
+  - `RegistrarExtracto`, que bloquea la cuenta, es idempotente por `extractoId`, separa duplicados y
+    publica primero el documento y después las transacciones;
+  - el puerto `CodificadorResultados`, para guardar el resultado sin que la aplicación dependa de JSON;
+  - `GestionTransacciones.consultarVarias`.
+- **Infraestructura:**
+  - inserción por lotes con `NamedParameterJdbcTemplate`;
+  - `contarClaves` con `GROUP BY` sobre la clave de duplicado;
+  - `CodificadorResultadosJson`;
+  - API interna `/internal/extractos`, `/internal/transacciones/{id}` y `/internal/transacciones/consulta`.
+- **Kernel:** `Pagina` incluye `totalPaginas` como componente, porque antes era un método y no salía en
+  el JSON (lo detectó el smoke).
+
+### Problemas encontrados
+
+- **Falta de memoria nativa** en una JVM de test durante un `verify` completo, con el stack de compose y
+  los contenedores de Testcontainers a la vez. Quedaban unos 5 GB libres de 32.
+  - **Solución:** las JVM de test se acotan en el POM raíz (`argLine`: `-Xmx768m`,
+    `-XX:TieredStopAtLevel=1` y `-XX:+UseSerialGC`), y los servicios de compose se paran durante el
+    `verify`.
+  - Los volcados de la JVM (`hs_err_pid*` y `replay_pid*`) se ignoran en git.
+- **Comandos largos de Git Bash con varios heredocs** fallaban con un error de análisis de comillas antes
+  de ejecutarse, sin dejar cambios a medias. La documentación larga se escribe ahora con las herramientas
+  de edición de ficheros.
+
+### Verificación
+
+- `./mvnw verify` en verde en todo el monorepo:
+  - `DetectorDuplicadosTest` (4 casos):
+    - filas idénticas nuevas → se importan todas;
+    - reimportar → todas duplicadas;
+    - una ya existente → la primera duplicada y la segunda nueva;
+    - solape.
+  - `ExtractosIT` (6 escenarios):
+    - importar y reimportar, con el saldo de la cuenta igual al de la última fila;
+    - solape más una manual sin cuenta, que también cuenta como existente;
+    - idempotencia: la misma respuesta y ninguna transacción de más;
+    - **dos importaciones concurrentes**: 3 transacciones en total, no 6;
+    - reasignar y borrar el documento, con un solo evento por operación y `DocumentoRegistrado` antes
+      que sus transacciones en el outbox;
+    - API interna solo para el propietario.
+- **Smoke en compose:**
+  - `POST /api/movimientos/internal/extractos` a través del gateway → 403;
+  - la llamada directa al servicio (simulando la red interna) → 201 con `importadas: 2`;
+  - el reintento → el mismo JSON;
+  - `/api/movimientos/documentos` muestra el documento con `numeroTransacciones: 2`;
+  - la cuenta tiene `saldo: 997.00`.
