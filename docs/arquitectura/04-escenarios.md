@@ -8,8 +8,8 @@ código) en la fase en que se implementa.
 | [Registro de usuario y publicación del evento](#41-registro-de-usuario) | F1 | ✅ |
 | [Inicio de sesión y petición autenticada](#42-inicio-de-sesión-y-petición-autenticada) | F1 (directo) / F2 (gateway) | ✅ |
 | [Siembra del catálogo al registrarse](#44-siembra-del-catálogo-al-registrarse) | F5 | ✅ |
-| [Registro de un extracto en movimientos](#43-registro-de-un-extracto-en-movimientos) | F4 | ✅ (la parte de importacion llega en F7) |
-| Importación de un extracto de punta a punta (importacion → movimientos → clasificación automática → consultas) | F7 | pendiente |
+| [Registro de un extracto en movimientos](#43-registro-de-un-extracto-en-movimientos) | F4 | ✅ |
+| [Importación de un extracto de punta a punta](#48-importación-de-un-extracto-de-punta-a-punta) (la parte de consultas llega en F8) | F7 | ✅ |
 | [Clasificación automática de un extracto importado](#46-clasificación-automática-de-un-extracto-importado) | F6 | ✅ |
 | [Crear y clasificar una transacción a mano (dos servicios, *read-through*)](#47-crear-y-clasificar-una-transacción-a-mano) | F6 | ✅ |
 | Leer lo que acabas de escribir (`Gastos-Secuencia` / `Gastos-Esperar`) | F8 | pendiente |
@@ -229,3 +229,47 @@ sequenceDiagram
 
 Si la transacción no existe o es de otro usuario, movimientos responde 404 y clasificacion devuelve el
 mismo 404.
+
+## 4.8 Importación de un extracto de punta a punta
+
+```mermaid
+sequenceDiagram
+    actor U as Front
+    participant G as gateway
+    participant I as importacion
+    participant M as movimientos
+    participant K as Kafka
+    participant C as clasificacion
+    U->>G: POST /api/importacion/importaciones (multipart: archivo, formatoId, cuentaId, nombre?)
+    G->>G: JWT válido · tamaño ≤ 10 MB (si no, 413)
+    G->>I: POST /importaciones
+    I->>I: formato del usuario (404 si no) · LectorHojas → Hoja · InterpreteExtracto → líneas + errores
+    I->>M: POST /internal/extractos {extractoId nuevo, cuentaId, lineas} + JWT del usuario
+    Note over I,M: @Retryable ante fallos de red: el extractoId hace el reintento idempotente
+    M->>M: escenario 4.3 (cuenta del usuario, duplicados, documento, transacciones, outbox)
+    M-->>I: 201 {documentoId, importadas, duplicados[]}
+    I-->>U: 201 {documentoId, importadas, duplicados[], errores[]}
+    M--)K: DocumentoRegistrado, TransaccionRegistrada x N (origen IMPORTACION)
+    K--)C: escenario 4.6: clasificación automática
+```
+
+**Quién responde a qué.** Los errores de lectura y de interpretación son de importacion (400
+`FICHERO_ILEGIBLE`, filas en `errores[]`); la propiedad de la cuenta y los duplicados, de movimientos,
+que es dueño de esos datos. importacion traduce las respuestas de movimientos sin cambiar su `codigo`:
+el cliente ve el mismo 404 por una cuenta ajena que si la hubiera pedido a movimientos.
+
+**La respuesta no espera a la clasificación.** Llega en cuanto movimientos confirma; la categoría y las
+etiquetas aparecen unos milisegundos después. Las consultas lo resolverán con `Gastos-Esperar` (F8,
+[ADR 0011](../adr/0011-leer-lo-que-acabas-de-escribir.md)).
+
+Resultado medido en el smoke de F7, a través del gateway, con [`http/extracto-ejemplo.csv`](../../http/extracto-ejemplo.csv)
+y un xlsx con fechas reales de Excel y una fórmula:
+
+| Paso | Resultado |
+|---|---|
+| 1.ª importación del CSV (6 filas) | 201: 5 importadas (los dos Bizum idénticos son dos movimientos), 1 error `Fila 6: fecha con formato incorrecto: '31/02/2026'` |
+| 2.ª importación del mismo CSV | 201: 0 importadas, 5 duplicadas |
+| xlsx (fecha de tipo fecha, importe por fórmula) | 2 importadas; al repetir, 2 duplicadas |
+| Otro usuario importa en esa cuenta | 404 `RECURSO_NO_ENCONTRADO` (respondido por movimientos y propagado) |
+| Saldo de la cuenta | 2775,67 (la última fila con saldo; las del xlsx no traen saldo y no cuentan) |
+| Clasificación automática, unos ms después | COMPRA LUPA → Alimentacion + Supermercado; FARMACIA → Salud + Farmacia; NETFLIX → Ocio y cultura + Suscripciones; NOMINA → Ingresos + Nomina; PAYPAL *SPOTIFY → Ocio y cultura + Suscripciones, Compras online; BIZUM → etiqueta Bizum |

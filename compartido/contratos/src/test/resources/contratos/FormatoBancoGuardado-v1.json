@@ -1,0 +1,11 @@
+{
+  "formatoId": "0192f3a1-7c4e-7a10-8b2c-3d4e5f600020",
+  "nombre": "Unicaja (xlsx)",
+  "filaInicio": 9,
+  "columnaConcepto": 2,
+  "columnaImporte": 3,
+  "columnaFechaContable": 0,
+  "columnaFechaValor": 1,
+  "columnaSaldo": 4,
+  "formatoFecha": "dd/MM/yyyy"
+}

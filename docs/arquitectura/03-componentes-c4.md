@@ -55,7 +55,7 @@ flowchart LR
 | gateway | [gateway](#gateway) | F2 ✅ |
 | movimientos | [movimientos](#movimientos) | F3–F4 ✅ |
 | clasificacion | [clasificacion](#clasificacion) | F5–F6 ✅ |
-| importacion | (pendiente) | F7 |
+| importacion | [importacion](#importacion) | F7 ✅ |
 | consultas | (pendiente) | F8–F9 |
 
 ## identidad
@@ -206,3 +206,40 @@ flowchart LR
 ```
 
 Dependencias del dominio: `clasificacion → catalogo` (usa sus ids y sus reglas), nunca al revés.
+
+## importacion
+
+```mermaid
+flowchart LR
+    subgraph in [Entrada]
+        rest["ImportacionController<br/>/formatos, /previsualizaciones, /importaciones (multipart)"]
+    end
+    subgraph app [aplicacion]
+        gf["GestionFormatos"]
+        ie["ImportarExtractos<br/>(previsualizar, importar)"]
+        lh(["LectorHojas"])
+        rm(["RegistroMovimientos"])
+    end
+    subgraph dom [dominio]
+        fmt["formato: FormatoBanco,<br/>MapeoColumnas, FormatoFecha"]
+        ext["extracto: Hoja, Celda,<br/>InterpreteExtracto, Previsualizacion"]
+        rep(["FormatoRepositorio"])
+    end
+    subgraph out [Salida]
+        jdbc["FormatoRepositorioJdbc"]
+        lec["LectorHojasArchivo<br/>(LectorCsv · LectorExcel con POI)"]
+        http["RegistroMovimientosHttp<br/>(RestClient + JWT + @Retryable)"]
+        trad["TraductorEventosImportacion → outbox"]
+    end
+    rest --> gf & ie
+    gf --> fmt & rep
+    ie --> ext & rep & lh & rm
+    jdbc -. implementa .-> rep
+    lec -. implementa .-> lh
+    http -. implementa .-> rm
+    fmt --> trad
+```
+
+Dependencias del dominio: `extracto → formato` (el intérprete usa el formato), nunca al revés. POI solo
+aparece en `infraestructura/lectura`: el dominio trabaja con la `Hoja` neutral, y por eso el
+intérprete se prueba sin ficheros.

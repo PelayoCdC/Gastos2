@@ -30,6 +30,8 @@ comportamiento marcados con ⚑ son **intencionados**: corrigen defectos y los d
 | `DELETE` devuelve 200 vacío | 204 |
 | Crear una transacción: un `PUT` con categoría y etiquetas por nombre | `POST /movimientos/transacciones` y `PUT /clasificacion/transacciones/{id}` |
 | `/configuraciones-importacion` | `/importacion/formatos` |
+| `POST /importaciones/precarga` | `POST /importacion/previsualizaciones` |
+| `POST /importaciones` con `idConfiguracion` e `idCuenta`; `errores` y `duplicados` como listas de textos | `POST /importacion/importaciones` con `formatoId` y `cuentaId`; `errores: [{fila, mensaje}]` y `duplicados: [{fila, fechaContable, concepto, importe}]` |
 
 ## Comportamiento del dominio
 
@@ -45,7 +47,9 @@ comportamiento marcados con ⚑ son **intencionados**: corrigen defectos y los d
 | ⚑ Borrar una categoría usada por etiquetas | 500 (FK) | Se desasigna de transacciones y etiquetas | [clasificación](dominio/clasificacion.md) |
 | ⚑ Borrar una cuenta con movimientos | 500 (FK) | 409, o borrado en cascada explícito | [movimientos](dominio/movimientos.md) |
 | ⚑ Editar ocurrencias | Recortaba espacios y rompía `"bar "` o `" ibi"` | Los espacios se conservan siempre | [clasificación](dominio/clasificacion.md) |
-| ⚑ Formato de banco incompleto | Se detectaba al importar (400) | Se valida al guardar | [importación](dominio/importacion.md) |
+| ⚑ Formato de banco incompleto | Se detectaba al importar (400) | Se valida al guardar, igual que el patrón de fecha | [importación](dominio/importacion.md) |
+| ⚑ Fichero que no es Excel ni CSV | 400 genérico o 500 según el fallo de POI | 400 `FICHERO_ILEGIBLE` | [importación](dominio/importacion.md) |
+| ⚑ Fórmulas en el Excel | Se leía el texto de la fórmula y la fila daba error | Se lee el último valor calculado | [importación](dominio/importacion.md) |
 | ⚑ Contraseña / nombre | Solo "no vacía"; nombre opcional | Al menos 8 caracteres; nombre obligatorio | [identidad](dominio/identidad.md) |
 | ⚑ Evolución del saldo | Agrupaba por **nombre** de cuenta (fusionaba cuentas homónimas) | Agrupa por id | [consultas](dominio/consultas.md) |
 | ⚑ Ordenación de la rejilla | Sin desempate | Desempate por `orden` e `id` | consultas |

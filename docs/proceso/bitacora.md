@@ -21,7 +21,7 @@ en los [ADR](../adr/README.md).
 | F4 | movimientos B: registrar extracto, duplicados por conteo | ✅ Terminada |
 | F5 | clasificacion A: catálogo, prioridad, siembra, borrados | ✅ Terminada |
 | F6 | clasificacion B: motor, automática, propagación, masiva | ✅ Terminada |
-| F7 | importacion: formatos, lectura Excel/CSV, importar | En curso |
+| F7 | importacion: formatos, lectura Excel/CSV, importar | ✅ Terminada |
 | F8 | consultas A: proyecciones, rejilla, xlsx, leer lo que acabas de escribir | Pendiente |
 | F9 | consultas B: informes, análisis, reconstrucción | Pendiente |
 | F10 | Respaldo v1 y migración de los datos reales | Pendiente |
@@ -498,3 +498,79 @@ en los [ADR](../adr/README.md).
     - "BIZUM: Cena" → etiqueta Bizum.
   - Una transacción manual recién creada se clasifica al momento a través del gateway, con
     *read-through* real a movimientos.
+
+## F7 · importacion: formatos de banco, lectura de Excel/CSV e importación (2026-10-22)
+
+### Qué se hizo
+
+- **Contratos:** `importacion.v1.FormatoBancoGuardado` (estado completo) y `FormatoBancoEliminado`, con
+  sus muestras aprobadas y su sección en el catálogo de eventos.
+- **Dominio:**
+  - `formato`: el agregado `FormatoBanco` con `NombreFormato`, `MapeoColumnas` (obligatorios
+    validados al guardar) y `FormatoFecha` (estricto, cambiando `y` por `u`).
+  - `extracto`: el modelo neutral `Hoja`/`Celda`, el servicio puro `InterpreteExtracto` (importes con
+    cualquier convención de separadores, fechas estrictas, errores por fila) y `Previsualizacion`.
+- **Aplicación:** `GestionFormatos` (CRUD con nombre único) e `ImportarExtractos` (previsualizar e
+  importar), con los puertos `LectorHojas` y `RegistroMovimientos`.
+- **Infraestructura:**
+  - `LectorHojasArchivo` con `LectorCsv` (port del back antiguo, ahora sin `Workbook` intermedio) y
+    `LectorExcel` (POI: xlsx y xls, texto en español, fórmulas por su valor calculado);
+  - `RegistroMovimientosHttp`: RestClient con el JWT reenviado, `@Retryable` ante fallos de red y
+    traducción de los errores de movimientos conservando su `codigo`;
+  - `FormatoRepositorioJdbc` y Flyway `V1__formatos_banco.sql`;
+  - `ImportacionController` con multipart; límite de 10 MB también en el servicio.
+- **Despliegue:** módulo en el pom raíz, etapa `importacion` en el `Dockerfile` y servicio en
+  `compose.yaml` (`127.0.0.1:8084`). El gateway ya tenía la ruta desde F2.
+- **Documentación:** contexto de importación reescrito con el modelo real y su API; diagrama C4 de
+  componentes; escenario 4.8 de punta a punta; notas de implementación en el
+  [ADR 0003](../adr/0003-importacion-como-capa-anticorrupcion.md); despliegue, comparativa, deuda y
+  guía de desarrollo; `http/importacion.http` con un extracto de ejemplo.
+
+### Decisiones y desviaciones
+
+- **Solo se reintentan los fallos de red, no los 503** (el ADR 0003 decía "conexión o 503"):
+  movimientos no responde 503 por sí mismo, y un 5xx suyo no se arregla repitiendo. Queda como nota de
+  implementación en el ADR.
+- **importacion no comprueba la cuenta** ni guarda nada al importar. La propiedad de la cuenta la
+  decide movimientos con el mismo JWT, y su 404 llega al cliente con el mismo `codigo`.
+- **El CSV ya no pasa por POI.** El back antiguo convertía el CSV en un `Workbook` en memoria para
+  reutilizar el flujo de Excel; ahora ambos lectores producen la misma `Hoja` neutral, que es más
+  barato y deja POI solo para Excel.
+- **Las fórmulas de Excel se leen por su valor calculado.** El back antiguo leía el texto de la fórmula
+  y la fila daba error.
+- **Errores y duplicados estructurados** en la respuesta (`{fila, mensaje}` y
+  `{fila, fechaContable, concepto, importe}`) en vez de listas de textos.
+- **Deuda anotada:** la cabecera `Location` es relativa al servicio y no a la ruta pública; el reenvío
+  del JWT está repetido en dos adaptadores.
+
+### Problemas encontrados
+
+- **Convergencia de dependencias.** POI 5.5.1 trae `commons-io` 2.21.0 y su `commons-compress`, 2.20.0;
+  el enforcer lo rechazó. **Solución:** fijar 2.21.0 en el `dependencyManagement` raíz.
+- **Multipart en MockMvc con Spring 7.** `MockMultipartHttpServletRequestBuilder` ya no hereda de
+  `MockHttpServletRequestBuilder` y el auxiliar genérico de los tests no compilaba. **Solución:** dos
+  sobrecargas.
+- **El 413 del servicio daba un *reset* en el test.** Con el cuerpo *chunked*, Tomcat responde 413 y
+  cierra con el cuerpo a medio leer, y en Windows el cliente pierde la respuesta. **Solución:** el test
+  envía el multipart con `Content-Length`, como un navegador o `curl -F`. Anotado en la guía.
+- **Memoria del portátil durante el smoke.** Con los cinco servicios levantados no quedaba memoria
+  nativa para otra JVM (jshell para generar un xlsx). **Solución:** generar el xlsx del smoke con un
+  script de Node que escribe el zip a mano.
+
+### Verificación
+
+- `./mvnw verify` en verde para los 11 módulos (2 min 41 s). En importacion:
+  - `InterpreteExtractoTest` (19 casos): importes y fechas portados del back antiguo y de
+    `dominio.spec.ts` del móvil, 31/02 como error de fila, filas idénticas como dos líneas, celdas
+    numéricas y de fecha de Excel, previsualización de 20 filas al mismo ancho.
+  - `FormatoBancoTest` (4), `LectorCsvTest` (7, port de `LectorCsvTest` y `lector-csv.spec.ts`),
+    `LectorHojasArchivoTest` (4: xlsx con fecha, número y fórmula; xls; CSV; fichero ilegible).
+  - `ImportacionAplicacionTest` (5) con dobles; `ArquitecturaTest`.
+  - `ImportacionIT` (5): formatos con nombre único y eventos en el outbox; previsualización;
+    importación de un xlsx con el JWT reenviado y las líneas tipadas; traducción de 404, 400 y 5xx de
+    un movimientos simulado; 413 con una subida real de 10,1 MB.
+- **Smoke en compose a través del gateway** (resultados en el [escenario 4.8](../arquitectura/04-escenarios.md#48-importación-de-un-extracto-de-punta-a-punta)):
+  - CSV: 5 importadas y 1 error; al repetir, 5 duplicadas. xlsx: 2 importadas; al repetir, 2 duplicadas.
+  - Nombre de formato repetido 409, formato incompleto 400, cuenta y formato ajenos 404.
+  - Las 7 transacciones importadas aparecen clasificadas automáticamente en clasificacion.
+  - 413 por encima de 10 MB en el gateway y en el propio servicio; `/internal` bloqueado (403).

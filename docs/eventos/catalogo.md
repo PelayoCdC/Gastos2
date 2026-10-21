@@ -110,3 +110,15 @@ Las ocurrencias viajan tal cual, **con sus espacios** (`"bar "`): son parte del 
 consumidor sustituye lo que tenía si `versionAgregado` es mayor. Si llega antes que el
 `TransaccionRegistrada` de la misma transacción (topics distintos, sin orden entre ellos), consultas
 guarda la parte de clasificación de la fila y la muestra cuando llegan los hechos.
+
+### importacion.eventos
+
+Productor: importacion. La clave es el usuario propietario.
+
+| Evento | Cuándo | Campos de `datos` | Consumidores |
+|---|---|---|---|
+| `FormatoBancoGuardado` | Crear o modificar un formato de banco | `formatoId`, `nombre`, `filaInicio` (desde 1), `columnaConcepto`, `columnaImporte`, `columnaFechaContable` (desde 0), `columnaFechaValor?`, `columnaSaldo?`, `formatoFecha` | consultas (exportación v1) |
+| `FormatoBancoEliminado` | Borrar un formato | `formatoId` | consultas |
+
+Importar un extracto **no** emite eventos en importacion. El resultado lo registra movimientos, que
+publica `DocumentoRegistrado` y las `TransaccionRegistrada`.

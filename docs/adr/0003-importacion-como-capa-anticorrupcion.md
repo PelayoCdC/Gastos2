@@ -40,3 +40,17 @@ También orquesta la restauración de respaldos v1 ([0020](0020-restauracion-v1-
 - ⚠️ Una importación depende de que `movimientos` esté disponible: si no lo está, la importación falla
   con 503 y el usuario reintenta.
 - 🔁 Si sobran servicios, es el primero que se fusionaría con `movimientos`.
+
+## Notas de implementación (F7, 2026-10-22)
+
+- **Solo se reintentan los errores de conexión** (`ResourceAccessException`, dos reintentos a 200 ms),
+  no los 503. movimientos no depende de otros servicios y nunca responde 503 por sí mismo; un 5xx suyo
+  es un fallo que no se arregla repitiendo, así que se traduce directamente a 503
+  `SERVICIO_NO_DISPONIBLE` para el cliente.
+- **Los errores de movimientos conservan su `codigo`.** 404 → `RecursoNoEncontrado`, 400 →
+  `ExcepcionDominio` y 409 → `Conflicto`, con el `codigo` y el `detail` del ProblemDetail original. El
+  cliente no sabe (ni necesita saber) que hubo dos saltos.
+- **importacion no comprueba la cuenta.** Es un dato de movimientos y se comprueba allí con el mismo JWT;
+  duplicar la comprobación exigiría otra llamada o una copia de las cuentas.
+- **Ni ficheros ni movimientos se guardan en importacion.** La única escritura de la importación es la
+  transacción de movimientos, por eso el caso de uso no abre una unidad de trabajo para importar.

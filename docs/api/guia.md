@@ -58,6 +58,12 @@ Catálogo (categorías, etiquetas, orden de prioridad y definiciones): tabla com
 [dominio/clasificacion.md](../dominio/clasificacion.md#api-del-catálogo-f5-a-través-del-gateway-apiclasificacion).
 Ejemplos: [`http/clasificacion.http`](../../http/clasificacion.http).
 
+### importacion (`/api/importacion`)
+
+Formatos de banco, previsualización e importación de extractos (multipart, hasta 10 MB): tabla completa
+en [dominio/importacion.md](../dominio/importacion.md#api-a-través-del-gateway-apiimportacion).
+Ejemplos: [`http/importacion.http`](../../http/importacion.http).
+
 ### Errores propios del gateway
 
 | Situación | Estado | `codigo` |

@@ -32,3 +32,6 @@ COPY --from=build /src/servicios/movimientos/target/movimientos.jar app.jar
 
 FROM base AS clasificacion
 COPY --from=build /src/servicios/clasificacion/target/clasificacion.jar app.jar
+
+FROM base AS importacion
+COPY --from=build /src/servicios/importacion/target/importacion.jar app.jar

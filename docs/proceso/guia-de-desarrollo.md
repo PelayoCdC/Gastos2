@@ -98,4 +98,13 @@ servicios/<svc>/src/main/resources/db/migration/   Flyway V1__..., V2__...
 - **Guardar dos veces en la misma unidad de trabajo.** Un agregado nuevo sigue siendo "nuevo" después
   de guardarlo (su `versionCargada` es 0), así que un segundo `guardar` volvería a insertarlo. Si
   necesitas seguir trabajando con él, recárgalo del repositorio (como `TransaccionesConocidas`).
+- **Conflictos de versiones transitivas.** La regla `dependencyConvergence` del enforcer falla si dos
+  caminos traen versiones distintas de la misma librería (POI trae dos `commons-io`). Se fija la mayor
+  en el `dependencyManagement` del pom raíz, con un comentario que diga quién la pide.
+- **Multipart en MockMvc con Spring 7.** `MockMultipartHttpServletRequestBuilder` ya no extiende
+  `MockHttpServletRequestBuilder`: un método auxiliar que acepte los dos necesita dos sobrecargas.
+- **Probar el 413 de una subida.** MockMvc no aplica los límites de multipart; hace falta una petición
+  HTTP real. Y debe llevar `Content-Length`: si va *chunked*, Tomcat responde 413 y cierra la conexión
+  con cuerpo pendiente, y el cliente ve un *reset* en vez de la respuesta (ver `ImportacionIT`). Los
+  navegadores y `curl -F` envían `Content-Length`.
 - Los commits se hacen por fase o por unidad coherente, con el mensaje en español.

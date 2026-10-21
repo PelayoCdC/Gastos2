@@ -6,6 +6,8 @@ import es.gastos.contratos.clasificacion.v1.EtiquetaEliminada;
 import es.gastos.contratos.clasificacion.v1.EtiquetaGuardada;
 import es.gastos.contratos.clasificacion.v1.TransaccionClasificada;
 import es.gastos.contratos.identidad.v1.UsuarioRegistrado;
+import es.gastos.contratos.importacion.v1.FormatoBancoEliminado;
+import es.gastos.contratos.importacion.v1.FormatoBancoGuardado;
 import es.gastos.contratos.movimientos.v1.CuentaEliminada;
 import es.gastos.contratos.movimientos.v1.CuentaGuardada;
 import es.gastos.contratos.movimientos.v1.DocumentoEliminado;
@@ -61,7 +63,10 @@ public final class CatalogoEventos {
 			new Entrada(CategoriaEliminada.TIPO, 1, Topics.CLASIFICACION, CategoriaEliminada.class),
 			new Entrada(EtiquetaGuardada.TIPO, 1, Topics.CLASIFICACION, EtiquetaGuardada.class),
 			new Entrada(EtiquetaEliminada.TIPO, 1, Topics.CLASIFICACION, EtiquetaEliminada.class),
-			new Entrada(TransaccionClasificada.TIPO, 1, Topics.CLASIFICACION, TransaccionClasificada.class)
+			new Entrada(TransaccionClasificada.TIPO, 1, Topics.CLASIFICACION, TransaccionClasificada.class),
+
+			new Entrada(FormatoBancoGuardado.TIPO, 1, Topics.IMPORTACION, FormatoBancoGuardado.class),
+			new Entrada(FormatoBancoEliminado.TIPO, 1, Topics.IMPORTACION, FormatoBancoEliminado.class)
 	);
 
 	private static final Map<String, Entrada> POR_CLAVE = ENTRADAS.stream()

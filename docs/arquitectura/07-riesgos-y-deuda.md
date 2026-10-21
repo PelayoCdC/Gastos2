@@ -18,3 +18,5 @@
 | Sin *refresh token* ni revocación de JWT | Igual que antes; aplicación personal | Si se expone a Internet |
 | Sin alta disponibilidad (un nodo de Kafka, una MariaDB) | Uso personal | Nunca, salvo un cambio de uso |
 | Importes migrados con la imprecisión del `float` original | No se puede recuperar la información perdida | — |
+| La cabecera `Location` de los 201 es relativa al servicio (`/formatos/{id}`), no a la ruta pública (`/api/importacion/formatos/{id}`), porque el gateway no la reescribe | Ningún cliente la usa todavía (el front lee el id del cuerpo) | F11: filtro `RewriteResponseHeader` por ruta en el gateway, o `X-Forwarded-Prefix` + `ForwardedHeaderFilter` |
+| El reenvío del JWT del usuario está repetido en los dos adaptadores HTTP (`OrigenTransaccionesHttp` y `RegistroMovimientosHttp`) | Dos usos no justifican aún una abstracción común | Cuando aparezca un tercero: un interceptor de `RestClient` en `compartido/web` |

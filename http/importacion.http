@@ -1,0 +1,83 @@
+### Requiere haber iniciado sesión con http/identidad.http ({{token}}) y creado una cuenta con
+### http/movimientos.http ({{cuenta}}). El extracto de ejemplo está junto a este fichero.
+
+### Previsualizar un fichero para decidir las columnas (no hace falta formato ni cuenta)
+POST {{importacion}}/previsualizaciones
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=limite
+
+--limite
+Content-Disposition: form-data; name="archivo"; filename="extracto-ejemplo.csv"
+Content-Type: text/csv
+
+< ./extracto-ejemplo.csv
+--limite--
+
+### Crear el formato del banco: fila de inicio desde 1, columnas desde 0
+POST {{importacion}}/formatos
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "nombre": "Banco de ejemplo (csv)",
+  "filaInicio": 2,
+  "columnaFechaContable": 0,
+  "columnaConcepto": 1,
+  "columnaImporte": 2,
+  "columnaSaldo": 3,
+  "formatoFecha": "dd/MM/yyyy"
+}
+
+> {% client.global.set("formato", response.body.id); %}
+
+### Formatos del usuario, por nombre
+GET {{importacion}}/formatos
+Authorization: Bearer {{token}}
+
+### Importar el extracto en la cuenta. La primera vez: 5 importadas (los dos Bizum idénticos son dos
+### movimientos) y 1 error (31/02 no existe). Repetirla: 0 importadas y 5 duplicadas.
+POST {{importacion}}/importaciones
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=limite
+
+--limite
+Content-Disposition: form-data; name="formatoId"
+
+{{formato}}
+--limite
+Content-Disposition: form-data; name="cuentaId"
+
+{{cuenta}}
+--limite
+Content-Disposition: form-data; name="nombre"
+
+Julio 2026
+--limite
+Content-Disposition: form-data; name="archivo"; filename="extracto-ejemplo.csv"
+Content-Type: text/csv
+
+< ./extracto-ejemplo.csv
+--limite--
+
+### El documento creado está en movimientos
+GET {{movimientos}}/documentos
+Authorization: Bearer {{token}}
+
+### Cambiar el formato (p. ej. añadir la columna de fecha valor)
+PUT {{importacion}}/formatos/{{formato}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "nombre": "Banco de ejemplo (csv)",
+  "filaInicio": 2,
+  "columnaFechaContable": 0,
+  "columnaConcepto": 1,
+  "columnaImporte": 2,
+  "columnaSaldo": 3,
+  "formatoFecha": "dd/MM/yyyy"
+}
+
+### Borrar el formato (los documentos ya importados no cambian)
+DELETE {{importacion}}/formatos/{{formato}}
+Authorization: Bearer {{token}}

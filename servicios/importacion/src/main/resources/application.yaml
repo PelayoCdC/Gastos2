@@ -1,0 +1,39 @@
+# Valores para ejecutar en local contra la infraestructura de compose; en contenedor se sobrescriben.
+server:
+  port: 8084
+
+spring:
+  application:
+    name: importacion
+  threads:
+    virtual:
+      enabled: true
+  servlet:
+    multipart:
+      # El mismo límite que el gateway (docs/adr/0019); aquí protege al servicio si se le llama directamente
+      max-file-size: 10MB
+      max-request-size: 11MB
+  datasource:
+    url: jdbc:mariadb://localhost:3307/importacion
+    username: importacion
+    password: importacion-dev
+  kafka:
+    bootstrap-servers: localhost:9094
+    producer:
+      acks: all
+      properties:
+        enable.idempotence: true
+
+gastos:
+  mensajeria:
+    contexto: importacion
+  seguridad:
+    jwk-set-uri: http://localhost:8081/.well-known/jwks.json
+  servicios:
+    movimientos: http://localhost:8082
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
