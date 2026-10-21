@@ -1,0 +1,61 @@
+# Stack completo de Gastos2. Ver docs/arquitectura/06-despliegue.md.
+#
+#   docker compose up -d mariadb kafka --wait     # solo infraestructura (desarrollo con el IDE)
+#   docker compose up -d --build --wait           # todo
+#   docker compose down                           # -v borra también los datos
+#
+# Puertos en el host elegidos para no chocar con el stack antiguo de Gastos (8080, 3306, 4200):
+#   MariaDB 3307, Kafka 9094.
+
+name: gastos2
+
+services:
+  mariadb:
+    image: mariadb:11.8
+    environment:
+      MARIADB_ROOT_PASSWORD: root-dev
+      TZ: Europe/Madrid
+    ports:
+      - "3307:3306"
+    volumes:
+      - datos-mariadb:/var/lib/mysql
+      - ./infra/mariadb/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  kafka:
+    image: apache/kafka:4.2.2
+    environment:
+      # Nodo único en modo KRaft (broker y controller a la vez, sin ZooKeeper)
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      CLUSTER_ID: "SqWCvmgSCBZAuhoWTKae5A"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: INTERNO://:9092,CONTROLLER://:9093,EXTERNO://:9094
+      KAFKA_ADVERTISED_LISTENERS: INTERNO://kafka:9092,EXTERNO://localhost:9094
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNO:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNO:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNO
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      # Los topics los declara cada servicio productor (NewTopic) con su configuración: retención infinita
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+    ports:
+      - "9094:9094"
+    volumes:
+      - datos-kafka:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+
+volumes:
+  datos-mariadb:
+  # El log de Kafka es la fuente para reconstruir las proyecciones de consultas: hay que respaldarlo
+  datos-kafka:
