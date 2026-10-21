@@ -53,7 +53,7 @@ flowchart LR
 |---|---|---|
 | identidad | [identidad](#identidad) | F1 ✅ |
 | gateway | [gateway](#gateway) | F2 ✅ |
-| movimientos | (pendiente) | F3–F4 |
+| movimientos | [movimientos](#movimientos) | F3 ✅ · F4 |
 | clasificacion | (pendiente) | F5–F6 |
 | importacion | (pendiente) | F7 |
 | consultas | (pendiente) | F8–F9 |
@@ -119,3 +119,45 @@ flowchart LR
 | `application.yaml` | Rutas por contexto, filtro `RequestSize` por defecto y URL de cada servicio (`gastos.servicios.*`) |
 | `SeguridadGateway` | `SecurityWebFilterChain` reactiva, decodificador JWT con JWKS + emisor + audiencia, CORS |
 | `ErroresGateway` | Convierte "no se puede conectar con el servicio" en 503 RFC 9457 `SERVICIO_NO_DISPONIBLE` |
+
+## movimientos
+
+```mermaid
+flowchart LR
+    subgraph in [Entrada]
+        rc["CuentasController"]
+        rd["DocumentosController"]
+        rt["TransaccionesController"]
+    end
+    subgraph app [aplicacion]
+        gc["GestionCuentas"]
+        ec["EliminarCuenta (política de cascada)"]
+        gd["GestionDocumentos"]
+        gt["GestionTransacciones"]
+        lc(["LecturaCuentas"])
+        ld(["LecturaDocumentos"])
+    end
+    subgraph dom [dominio]
+        cu["cuenta/Cuenta"]
+        doc["documento/Documento"]
+        tx["transaccion/Transaccion"]
+        rep(["Cuenta / Documento / Transaccion Repositorio"])
+    end
+    subgraph out [Salida]
+        jdbc["*RepositorioJdbc"]
+        lec["LecturasJdbc (saldo, conteos)"]
+        trad["TraductorEventosMovimientos → outbox"]
+    end
+    rc --> gc & ec
+    rd --> gd
+    rt --> gt
+    gc & ec & gd & gt --> cu & doc & tx & rep
+    gc --> lc
+    gd --> ld
+    jdbc -. implementa .-> rep
+    lec -. implementa .-> lc & ld
+    cu & doc & tx --> trad
+```
+
+Dependencias entre los módulos del dominio, sin ciclos (lo verifica ArchUnit):
+`transaccion → documento → cuenta`, y todos ellos dependen de `comun`.

@@ -29,6 +29,7 @@
 		<module>compartido/web</module>
 		<module>compartido/mensajeria</module>
 		<module>servicios/identidad</module>
+		<module>servicios/movimientos</module>
 		<module>servicios/gateway</module>
 	</modules>
 

@@ -66,3 +66,27 @@ el consumidor si llega tarde o repetido. La muestra JSON aprobada de cada uno es
 - **Si llega repetido:** clasificacion usa el inbox y la siembra es idempotente (`catalogo_sembrado`).
 - **Si llega tarde:** clasificacion siembra de forma perezosa en la primera petición del usuario, así que
   el evento tardío no hace nada.
+
+### movimientos.eventos
+
+Productor: movimientos. La clave es el usuario propietario, y `agregadoId` es el id de la cuenta, el
+documento o la transacción. Los importes viajan como número JSON con 2 decimales.
+
+| Evento | Cuándo | Campos de `datos` | Consumidores |
+|---|---|---|---|
+| `CuentaGuardada` | Crear o modificar una cuenta | `cuentaId`, `nombre`, `banco`, `descripcion` (estado completo) | consultas |
+| `CuentaEliminada` | Borrar una cuenta. Si se borra en cascada (`conMovimientos=true`), antes se emiten los `DocumentoEliminado` y `TransaccionEliminada` de su contenido | `cuentaId` | consultas |
+| `DocumentoRegistrado` | Importar un extracto. Va **antes** que las `TransaccionRegistrada` de sus filas | `documentoId`, `cuentaId`, `nombre`, `nombreArchivo`, `fecha` | consultas |
+| `DocumentoRenombrado` | Renombrar un documento | `documentoId`, `nombre` | consultas |
+| `DocumentoReasignado` | Mover un documento **y todas sus transacciones** a otra cuenta (evento de conjunto) | `documentoId`, `cuentaIdAnterior`, `cuentaIdNueva` | consultas |
+| `DocumentoEliminado` | Borrar un documento **y todas sus transacciones** (evento de conjunto: no llega un `TransaccionEliminada` por cada una) | `documentoId` | clasificacion, consultas |
+| `TransaccionRegistrada` | Alta manual, fila importada o restauración | `transaccionId`, `origen` (IMPORTACION, MANUAL o MIGRACION), `cuentaId`, `documentoId`, `fechaContable`, `fechaValor`, `concepto`, `nota`, `importe`, `saldo`, `orden`, `ordenDocumento` | clasificacion, consultas |
+| `TransaccionCorregida` | Editar los hechos de una transacción | `transaccionId`, `cuentaId`, `fechaContable`, `fechaValor`, `concepto`, `nota`, `importe` | clasificacion, consultas |
+| `TransaccionEliminada` | Borrar una transacción concreta | `transaccionId`, `documentoId` | clasificacion, consultas |
+
+**Qué hacen los consumidores:**
+- **Orden:** el de cada usuario está garantizado dentro del topic. Por eso un `DocumentoEliminado` nunca
+  llega antes que el `DocumentoRegistrado` del mismo documento.
+- **Eventos de conjunto:** se aplican con SQL por conjuntos (`WHERE documento_id = ?`).
+- **Eventos repetidos o tardíos:** las proyecciones comparan `versionAgregado` y descartan las versiones
+  que ya tienen o anteriores. Las lápidas evitan que un evento tardío resucite una fila borrada.

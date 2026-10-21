@@ -17,8 +17,8 @@ en los [ADR](../adr/README.md).
 | F0 | Fundaciones: monorepo, kernel, soporte de pruebas, compose, documentación base, spikes | ✅ Terminada |
 | F1 | identidad + compartido/web y compartido/mensajeria (outbox, relay, inbox) | ✅ Terminada |
 | F2 | gateway | ✅ Terminada |
-| F3 | movimientos A: cuentas, documentos, transacciones manuales | En curso |
-| F4 | movimientos B: registrar extracto, duplicados por conteo | Pendiente |
+| F3 | movimientos A: cuentas, documentos, transacciones manuales | ✅ Terminada |
+| F4 | movimientos B: registrar extracto, duplicados por conteo | En curso |
 | F5 | clasificacion A: catálogo, prioridad, siembra, borrados | Pendiente |
 | F6 | clasificacion B: motor, automática, propagación, masiva | Pendiente |
 | F7 | importacion: formatos, lectura Excel/CSV, importar | Pendiente |
@@ -235,3 +235,70 @@ en los [ADR](../adr/README.md).
   - `/api/movimientos/internal/extractos` con token → 403;
   - `/api/movimientos/cuentas` (servicio aún sin desplegar) → 503 `SERVICIO_NO_DISPONIBLE`;
   - preflight desde `localhost:4200` → 200 con `Access-Control-Allow-Origin`.
+
+---
+
+## F3 · movimientos A: cuentas, documentos y transacciones manuales (2026-10-21)
+
+### Qué se hizo
+
+- **Contratos `movimientos.v1`:** los 9 eventos del contexto, con su muestra JSON aprobada y su
+  documentación en el catálogo:
+  - `CuentaGuardada` y `CuentaEliminada`;
+  - `DocumentoRegistrado`, `DocumentoRenombrado`, `DocumentoReasignado` y `DocumentoEliminado`;
+  - `TransaccionRegistrada`, `TransaccionCorregida` y `TransaccionEliminada`.
+- **Dominio:**
+  - agregados `Cuenta`, `Documento` y `Transaccion`, con ids tipados;
+  - VOs `NombreCuenta`, `NombreDocumento`, `Concepto` y `ClaveDuplicado` (SHA-256);
+  - invariante "la cuenta de una importada solo cambia con su documento".
+- **Aplicación:**
+  - `GestionCuentas` (alta, modificación y consulta, con nombre único);
+  - `EliminarCuenta` (409 o cascada explícita);
+  - `GestionDocumentos` (renombrar, reasignar y borrar por conjuntos);
+  - `GestionTransacciones` (alta manual, corrección, borrado y consulta);
+  - puertos de lectura `LecturaCuentas` y `LecturaDocumentos`.
+- **Infraestructura:**
+  - adaptadores JdbcClient y `LecturasJdbc` (el saldo por subconsulta);
+  - controladores REST y `TraductorEventosMovimientos`;
+  - Flyway V1 (cuenta, documento y transaccion, con `DECIMAL(15,2)` y saldo nulo);
+  - imagen y servicio en compose.
+- **Kernel:** `Propiedad.exigir(...)` para la comprobación de propiedad común.
+- **Mensajería:** `LectorSobres` y los tests de contrato leen los números como `BigDecimal`
+  (`USE_BIG_DECIMAL_FOR_FLOATS`), para que un importe no pase por `double`.
+
+### Decisiones y desviaciones
+
+- **Casos de uso agrupados** (`Gestion<X>`) para el CRUD simple de cada agregado. El plan decía uno por
+  clase; la regla queda en la guía de desarrollo. Las políticas (`EliminarCuenta`) van en su propia clase.
+- **Las transacciones manuales pueden tener cuenta.** Antes nunca la tenían. Si se indica, debe ser del
+  usuario (404 si no).
+- **El documento, sin creación en F3.** Solo nace al importar un extracto (F4); aquí se renombra, se
+  reasigna y se borra.
+- **El nombre de una cuenta duplicado por carrera** salta en la restricción `UNIQUE` y el adaptador lo
+  traduce al mismo 409.
+
+### Problemas encontrados
+
+- **Smoke con tildes desde Git Bash:** `curl -d '{"nombre":"Nómina"}'` no envía UTF-8 y el servicio
+  responde 400 `PETICION_MALFORMADA`, que es lo correcto ante JSON inválido. Con `--data-binary
+  @fichero` en UTF-8 funciona. Anotado en la guía de desarrollo.
+
+### Verificación
+
+- `./mvnw verify` en verde:
+  - 7 tests de dominio y 2 de arquitectura y documentación;
+  - `MovimientosApiIT` (5 escenarios):
+    - nombre duplicado normalizado → 409, y el mismo nombre en otro usuario no choca;
+    - el saldo nulo con manuales y el conteo;
+    - el outbox con `TransaccionRegistrada`, `TransaccionCorregida` y `TransaccionEliminada`, con
+      versiones 1, 2 y 3;
+    - 404 para lo ajeno, incluido apuntar a una cuenta ajena;
+    - 409 sin cascada y 204 con ella;
+    - 400 `VALIDACION`, `PARAMETRO_INVALIDO` y `PETICION_MALFORMADA`.
+- **Smoke en compose a través del gateway** (`/api/movimientos/...` con token real de identidad):
+  - cuenta "Nómina" creada;
+  - transacción manual de -1.50;
+  - listado con `numeroTransacciones: 1` y `saldo: null`;
+  - borrar sin cascada → 409, y con cascada → 204;
+  - `movimientos.eventos` con `CuentaGuardada`, `TransaccionRegistrada`, `TransaccionEliminada` y
+    `CuentaEliminada`, en ese orden.

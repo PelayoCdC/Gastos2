@@ -1,6 +1,6 @@
 # Contexto: movimientos
 
-**Tipo:** subdominio de soporte · **Servicio:** `servicios/movimientos` · **Estado:** diseñado (se implementa en F3–F4)
+**Tipo:** subdominio de soporte · **Servicio:** `servicios/movimientos` · **Estado:** ✅ cuentas, documentos y transacciones manuales (F3) · importación de extractos en F4
 
 ## Responsabilidad
 
@@ -69,3 +69,48 @@ fecha, la de mayor `orden`.
 - `MovimientosRestaurados`.
 
 El detalle está en el [catálogo de eventos](../eventos/catalogo.md).
+
+## API (a través del gateway: `/api/movimientos`)
+
+| Método y ruta | Descripción | Respuesta |
+|---|---|---|
+| `GET /cuentas` | Cuentas del usuario, ordenadas por nombre, con `saldo` y `numeroTransacciones` | 200 `[ResumenCuenta]` |
+| `GET /cuentas/{id}` | Una cuenta | 200 / 404 |
+| `POST /cuentas` | `{nombre, banco?, descripcion?}` | 201 + `Location`; 409 `NOMBRE_DUPLICADO` |
+| `PUT /cuentas/{id}` | Igual que el alta | 200; 404; 409 |
+| `DELETE /cuentas/{id}[?conMovimientos=true]` | Borra; con movimientos y sin el parámetro, 409 `CUENTA_CON_MOVIMIENTOS` | 204 |
+| `GET /documentos?cuentaId=&pagina=&tamano=` | Documentos, más recientes primero, con cuenta y número de transacciones | 200 `Pagina<ResumenDocumento>` |
+| `GET /documentos/{id}` | Un documento | 200 / 404 |
+| `PUT /documentos/{id}/nombre` | `{nombre}` | 200 |
+| `PUT /documentos/{id}/cuenta` | `{cuentaId}`: mueve el documento **y sus transacciones** | 200 |
+| `DELETE /documentos/{id}` | Borra el documento **y sus transacciones** | 204 |
+| `POST /transacciones` | Alta manual `{cuentaId?, fechaContable, fechaValor?, concepto?, nota?, importe}` | 201 `DatosTransaccion` |
+| `GET /transacciones/{id}` | Hechos de una transacción | 200 / 404 |
+| `PUT /transacciones/{id}` | Corrige los hechos editables. En una importada, la cuenta solo cambia con su documento (400 `CUENTA_DE_TRANSACCION_IMPORTADA`) | 200 |
+| `DELETE /transacciones/{id}` | Borra una transacción | 204 |
+
+Ejemplos: [`http/movimientos.http`](../../http/movimientos.http).
+
+## Implementación (F3)
+
+| Pieza | Clases |
+|---|---|
+| Agregados | `dominio/cuenta/Cuenta`, `dominio/documento/Documento`, `dominio/transaccion/Transaccion` (con `Transaccion.Datos` como estado completo) |
+| VOs | `NombreCuenta`, `NombreDocumento`, `Concepto`, `ClaveDuplicado`, `Origen`, ids tipados (`CuentaId`, `DocumentoId`, `TransaccionId`) |
+| Casos de uso | `aplicacion/cuentas/{GestionCuentas, EliminarCuenta}`, `aplicacion/documentos/GestionDocumentos`, `aplicacion/transacciones/GestionTransacciones` |
+| Puertos de lectura | `LecturaCuentas`, `LecturaDocumentos`, implementados por `LecturasJdbc` (SQL directo para el saldo y los conteos) |
+| Persistencia | `CuentaRepositorioJdbc`, `DocumentoRepositorioJdbc`, `TransaccionRepositorioJdbc` (JdbcClient, bloqueo optimista con `versionCargada`) |
+| Eventos | `TraductorEventosMovimientos` → `movimientos.v1.*` |
+
+**Decisiones de detalle:**
+- **Ids tipados.** `CuentaId`, `DocumentoId` y `TransaccionId` en vez de `UUID` sueltos: el compilador
+  impide pasar el id de un documento donde se espera el de una cuenta.
+- **Operaciones por conjuntos.** Mover o borrar las transacciones de un documento son una sola
+  sentencia SQL (`moverDocumentoACuenta`, `eliminarDeDocumento`), no N agregados cargados y guardados.
+  El evento del documento es un evento de conjunto que lo cubre. Al moverlas, se incrementa la versión
+  de cada transacción.
+- **Saldo de la cuenta.** Lo calcula una subconsulta (último con saldo por fecha contable, orden e id);
+  no es un atributo del agregado.
+- **Casos de uso agrupados.** Los de CRUD simple de un mismo agregado se agrupan en una clase
+  `Gestion<X>`. Los que tienen una política propia van en su clase, como `EliminarCuenta` con su
+  cascada. Ver la [guía de desarrollo](../proceso/guia-de-desarrollo.md#convenciones).

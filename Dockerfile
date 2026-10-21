@@ -26,3 +26,6 @@ COPY --from=build /src/servicios/identidad/target/identidad.jar app.jar
 
 FROM base AS gateway
 COPY --from=build /src/servicios/gateway/target/gateway.jar app.jar
+
+FROM base AS movimientos
+COPY --from=build /src/servicios/movimientos/target/movimientos.jar app.jar

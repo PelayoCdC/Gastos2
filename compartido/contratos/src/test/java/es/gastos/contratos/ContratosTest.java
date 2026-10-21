@@ -2,6 +2,7 @@ package es.gastos.contratos;
 
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -18,7 +19,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class ContratosTest {
 
-	private static final JsonMapper JSON = JsonMapper.builder().build();
+	// Los importes se leen como BigDecimal (igual que LectorSobres) para no perder la escala de 2 decimales
+	private static final JsonMapper JSON = JsonMapper.builder().enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS).build();
 
 	static List<CatalogoEventos.Entrada> eventos() {
 		return CatalogoEventos.todos();

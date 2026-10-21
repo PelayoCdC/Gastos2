@@ -82,7 +82,15 @@ servicios/<svc>/src/main/resources/db/migration/   Flyway V1__..., V2__...
 - Sin Lombok. Los VOs, comandos y DTOs son `record`.
 - **Javadoc:** en el dominio, explicando invariantes y el **porqué** de las reglas no obvias. Fuera del
   dominio, comenta solo lo que no se ve leyendo el código.
+- **Un caso de uso por clase**, con una excepción pragmática: los de CRUD simple de un mismo agregado (crear,
+  modificar, consultar) se agrupan en `Gestion<Agregado>`. Lo que tiene una política o una regla propia
+  (por ejemplo, `EliminarCuenta` con su cascada o `RegistrarExtracto`) va en su propia clase.
+- **Comprobación de propiedad** con `Propiedad.exigir(repositorio.buscar(id), usuario, "la cuenta", id)`:
+  un recurso ajeno o inexistente da el mismo 404.
+- **Ids tipados** (`CuentaId`, `TransaccionId`…) en vez de `UUID` sueltos dentro de cada servicio.
 - Los errores de negocio se lanzan como `ExcepcionDominio`, `RecursoNoEncontrado` o `Conflicto` con un
   `codigo` en MAYÚSCULAS. La capa web los convierte en ProblemDetail.
 - Nunca se usa `LocalDate.now()` ni similares en `dominio`/`aplicacion`: se inyecta un `Clock`.
+- **En Git Bash**, `curl -d` con tildes no envía UTF-8: usa `--data-binary @fichero.json`, o mejor los
+  `http/*.http`.
 - Los commits se hacen por fase o por unidad coherente, con el mensaje en español.

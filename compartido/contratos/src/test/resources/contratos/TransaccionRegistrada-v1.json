@@ -1,0 +1,14 @@
+{
+  "transaccionId": "0192f3a1-7c4e-7a10-8b2c-3d4e5f600003",
+  "origen": "IMPORTACION",
+  "cuentaId": "0192f3a1-7c4e-7a10-8b2c-3d4e5f600001",
+  "documentoId": "0192f3a1-7c4e-7a10-8b2c-3d4e5f600002",
+  "fechaContable": "2026-10-03",
+  "fechaValor": "2026-10-02",
+  "concepto": "COMPRA LUPA SANTANDER 02 10 2026",
+  "nota": null,
+  "importe": -45.60,
+  "saldo": 1234.56,
+  "orden": 7,
+  "ordenDocumento": 5
+}

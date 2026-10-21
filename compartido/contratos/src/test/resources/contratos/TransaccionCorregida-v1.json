@@ -1,0 +1,9 @@
+{
+  "transaccionId": "0192f3a1-7c4e-7a10-8b2c-3d4e5f600003",
+  "cuentaId": "0192f3a1-7c4e-7a10-8b2c-3d4e5f600001",
+  "fechaContable": "2026-10-03",
+  "fechaValor": "2026-10-02",
+  "concepto": "COMPRA LUPA SANTANDER",
+  "nota": "compra semanal",
+  "importe": -45.60
+}

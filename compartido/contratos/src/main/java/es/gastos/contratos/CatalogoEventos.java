@@ -1,6 +1,15 @@
 package es.gastos.contratos;
 
 import es.gastos.contratos.identidad.v1.UsuarioRegistrado;
+import es.gastos.contratos.movimientos.v1.CuentaEliminada;
+import es.gastos.contratos.movimientos.v1.CuentaGuardada;
+import es.gastos.contratos.movimientos.v1.DocumentoEliminado;
+import es.gastos.contratos.movimientos.v1.DocumentoReasignado;
+import es.gastos.contratos.movimientos.v1.DocumentoRegistrado;
+import es.gastos.contratos.movimientos.v1.DocumentoRenombrado;
+import es.gastos.contratos.movimientos.v1.TransaccionCorregida;
+import es.gastos.contratos.movimientos.v1.TransaccionEliminada;
+import es.gastos.contratos.movimientos.v1.TransaccionRegistrada;
 
 import java.util.List;
 import java.util.Map;
@@ -31,7 +40,17 @@ public final class CatalogoEventos {
 	}
 
 	private static final List<Entrada> ENTRADAS = List.of(
-			new Entrada(UsuarioRegistrado.TIPO, 1, Topics.IDENTIDAD, UsuarioRegistrado.class)
+			new Entrada(UsuarioRegistrado.TIPO, 1, Topics.IDENTIDAD, UsuarioRegistrado.class),
+
+			new Entrada(CuentaGuardada.TIPO, 1, Topics.MOVIMIENTOS, CuentaGuardada.class),
+			new Entrada(CuentaEliminada.TIPO, 1, Topics.MOVIMIENTOS, CuentaEliminada.class),
+			new Entrada(DocumentoRegistrado.TIPO, 1, Topics.MOVIMIENTOS, DocumentoRegistrado.class),
+			new Entrada(DocumentoRenombrado.TIPO, 1, Topics.MOVIMIENTOS, DocumentoRenombrado.class),
+			new Entrada(DocumentoReasignado.TIPO, 1, Topics.MOVIMIENTOS, DocumentoReasignado.class),
+			new Entrada(DocumentoEliminado.TIPO, 1, Topics.MOVIMIENTOS, DocumentoEliminado.class),
+			new Entrada(TransaccionRegistrada.TIPO, 1, Topics.MOVIMIENTOS, TransaccionRegistrada.class),
+			new Entrada(TransaccionCorregida.TIPO, 1, Topics.MOVIMIENTOS, TransaccionCorregida.class),
+			new Entrada(TransaccionEliminada.TIPO, 1, Topics.MOVIMIENTOS, TransaccionEliminada.class)
 	);
 
 	private static final Map<String, Entrada> POR_CLAVE = ENTRADAS.stream()

@@ -1,0 +1,49 @@
+### Requiere haber iniciado sesión con http/identidad.http (variable {{token}}).
+
+### Cuentas del usuario, con saldo (último movimiento que lo trae) y número de transacciones
+GET {{movimientos}}/cuentas
+Authorization: Bearer {{token}}
+
+### Crear cuenta (nombre único por usuario, sin distinguir mayúsculas ni tildes)
+POST {{movimientos}}/cuentas
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "nombre": "Nómina", "banco": "Unicaja", "descripcion": "Cuenta principal" }
+
+> {% client.global.set("cuenta", response.body.id); %}
+
+### Modificar cuenta
+PUT {{movimientos}}/cuentas/{{cuenta}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "nombre": "Cuenta nómina", "banco": "Unicaja" }
+
+### Alta manual de una transacción (solo hechos; la clasificación va a /api/clasificacion)
+POST {{movimientos}}/transacciones
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "cuentaId": "{{cuenta}}", "fechaContable": "2026-10-21", "concepto": "CAFE BAR PEPE", "nota": "desayuno", "importe": -1.50 }
+
+> {% client.global.set("transaccion", response.body.id); %}
+
+### Corregir los hechos
+PUT {{movimientos}}/transacciones/{{transaccion}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "cuentaId": "{{cuenta}}", "fechaContable": "2026-10-21", "concepto": "CAFE Y TOSTADA", "importe": -3.20 }
+
+### Documentos importados (los crea la importación de extractos)
+GET {{movimientos}}/documentos?pagina=0&tamano=50
+Authorization: Bearer {{token}}
+
+### Borrar la cuenta: 409 si tiene movimientos...
+DELETE {{movimientos}}/cuentas/{{cuenta}}
+Authorization: Bearer {{token}}
+
+### ...salvo que se pida el borrado en cascada
+DELETE {{movimientos}}/cuentas/{{cuenta}}?conMovimientos=true
+Authorization: Bearer {{token}}

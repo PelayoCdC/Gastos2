@@ -4,6 +4,7 @@ import es.gastos.contratos.CatalogoEventos;
 import es.gastos.contratos.EventoIntegracion;
 import es.gastos.contratos.Sobre;
 import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.DeserializationFeature;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -25,7 +26,8 @@ public class LectorSobres {
 	private final JsonMapper json;
 
 	public LectorSobres(JsonMapper json) {
-		this.json = json;
+		// Los importes viajan como números JSON: leerlos como BigDecimal evita pasar por double
+		this.json = json.rebuild().enable(DeserializationFeature.USE_BIG_DECIMAL_FOR_FLOATS).build();
 	}
 
 	public Optional<Sobre<EventoIntegracion>> leer(String mensaje) {
