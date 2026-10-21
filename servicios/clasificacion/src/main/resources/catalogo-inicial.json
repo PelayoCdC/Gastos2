@@ -1,0 +1,41 @@
+{
+  "categorias": [
+    { "nombre": "Alimentacion", "color": "#65a30d", "ocurrencias": ["lupa", "lidl", "carrefour", "mercadona", "eroski", "alcampo", "aldi", "supermercado", "supercor"] },
+    { "nombre": "Salud", "color": "#dc2626", "ocurrencias": ["farmacia", "fcia", "clinica", "dentista", "fisioterapia"] },
+    { "nombre": "Restauracion", "color": "#d97706", "ocurrencias": ["restaurante", "bar ", "pub ", "cafe", "cerveceria", "kebab", "pizz", "burger", "bk ", "mcdonald", "kfc", "buhardilla", "rock beer", "just eat", "justeat", "eats", "glovo", "telepizza"] },
+    { "nombre": "Ocio y cultura", "color": "#7c3aed", "ocurrencias": ["cine", "teatro", "festival", "concierto", "sala niagara", "steam", "instant gaming", "xtralife", "fangamer", "playstation", "nintendo", "netflix", "spotify", "hbo", "disney", "prime video"] },
+    { "nombre": "Compras", "color": "#db2777", "ocurrencias": ["amazon", "amzn", "aliexpress", "paypal", "corte ingles", "zara", "primark", "bershka", "springfield", "kiabi", "decathlon", "sprinter"] },
+    { "nombre": "Hogar y suministros", "color": "#2563eb", "ocurrencias": ["alquiler", "hipoteca", "iberdrola", "endesa", "naturgy", "viesgo", "holaluz", "gas ", "electricidad", "pepephone", "pepe mobil", "pepe mobile", "telefono", "telefonica", "movistar", "o2 fibra", "vodafone", "orange", "digi", "lowi", "yoigo"] },
+    { "nombre": "Transporte", "color": "#0f766e", "ocurrencias": ["renfe", "feve", "trainline", "alsa", "autobus", "taxi", "cabify", "metro", "gasolinera", "repsol", "cepsa", "galp", "parking", "aparcamiento", "garaje", "peaje"] },
+    { "nombre": "Viajes", "color": "#0891b2", "ocurrencias": ["booking", "hotel", "airbnb", "ryanair", "vueling", "iberia"] },
+    { "nombre": "Banco y comisiones", "color": "#475569", "ocurrencias": ["comision", "comis.", "com. ", "com.6", "mantenimiento"] },
+    { "nombre": "Seguros", "color": "#9333ea", "ocurrencias": ["seguro", "mapfre", "axa", "mutua", "linea directa", "allianz"] },
+    { "nombre": "Impuestos", "color": "#b91c1c", "ocurrencias": ["aeat", "a.e.a.t", "agencia tributaria", "ayuntamiento", " ibi", "seguridad social"] },
+    { "nombre": "Ingresos", "color": "#16a34a", "ocurrencias": ["nomina", "hab."] }
+  ],
+  "etiquetas": [
+    { "nombre": "Farmacia", "categoria": "Salud", "ocurrencias": ["farmacia", "fcia"] },
+    { "nombre": "Supermercado", "categoria": "Alimentacion", "ocurrencias": ["lupa", "lidl", "carrefour", "mercadona", "eroski", "alcampo", "aldi", "supermercado", "supercor"] },
+    { "nombre": "Comida a domicilio", "categoria": "Restauracion", "ocurrencias": ["just eat", "justeat", "eats", "glovo", "telepizza"] },
+    { "nombre": "Restauracion", "categoria": "Restauracion", "ocurrencias": ["restaurante", "bar ", "pub ", "cafe", "cerveceria", "kebab", "pizz", "burger", "burg king", "bk ", "mcdonald", "kfc", "buhardilla", "rock beer"] },
+    { "nombre": "Cine y espectaculos", "categoria": "Ocio y cultura", "ocurrencias": ["cine", "teatro", "festival", "sala niagara", "entradas"] },
+    { "nombre": "Videojuegos", "categoria": "Ocio y cultura", "ocurrencias": ["steam", "instant gaming", "xtralife", "fangamer", "playstation", "nintendo"] },
+    { "nombre": "Suscripciones", "categoria": "Ocio y cultura", "ocurrencias": ["netflix", "spotify", "hbo", "disney", "prime video", "youtube premium"] },
+    { "nombre": "Compras online", "categoria": "Compras", "ocurrencias": ["amazon", "amzn", "aliexpress", "paypal", "corte ingles"] },
+    { "nombre": "Ropa", "categoria": "Compras", "ocurrencias": ["zara", "primark", "bershka", "pull & bear", "pull&bear", "springfield", "kiabi", "decathlon", "sprinter"] },
+    { "nombre": "Telefonia e internet", "categoria": "Hogar y suministros", "ocurrencias": ["pepephone", "pepe mobil", "pepe mobile", "telefono", "telefonica", "movistar", "o2 fibra", "vodafone", "orange", "digi", "lowi", "yoigo"] },
+    { "nombre": "Luz y gas", "categoria": "Hogar y suministros", "ocurrencias": ["iberdrola", "endesa", "naturgy", "viesgo", "holaluz", "gas ", "electricidad"] },
+    { "nombre": "Gasolinera", "categoria": "Transporte", "ocurrencias": ["repsol", "cepsa", "galp", "shell", "petroprix", "ballenoil", "gasolinera", "estacion de servicio"] },
+    { "nombre": "Transporte", "categoria": "Transporte", "ocurrencias": ["renfe", "feve", "trainline", "alsa", "autobus", "taxi", "cabify", "metro"] },
+    { "nombre": "Parking y garaje", "categoria": "Transporte", "ocurrencias": ["parking", "aparcamiento", "garaje", "peaje"] },
+    { "nombre": "Viajes", "categoria": "Viajes", "ocurrencias": ["booking", "hotel", "airbnb", "ryanair", "vueling", "iberia"] },
+    { "nombre": "Seguros", "categoria": "Seguros", "ocurrencias": ["seguro", "mapfre", "axa", "mutua", "linea directa", "allianz"] },
+    { "nombre": "Nomina", "categoria": "Ingresos", "ocurrencias": ["nomina", "hab."] },
+    { "nombre": "Bizum", "categoria": null, "ocurrencias": ["bizum"] },
+    { "nombre": "Transferencias", "categoria": null, "ocurrencias": ["transferencia", "transf."] },
+    { "nombre": "Efectivo", "categoria": null, "ocurrencias": ["caj/", "caj.", "cajero", "reintegro", "urbana"] },
+    { "nombre": "Comisiones", "categoria": "Banco y comisiones", "ocurrencias": ["comision", "comis.", "com. ", "com.6", "mantenimiento"] },
+    { "nombre": "Alquiler e hipoteca", "categoria": "Hogar y suministros", "ocurrencias": ["alquiler", "hipoteca"] },
+    { "nombre": "Impuestos", "categoria": "Impuestos", "ocurrencias": ["aeat", "a.e.a.t", "agencia tributaria", "ayuntamiento", " ibi", "seguridad social"] }
+  ]
+}

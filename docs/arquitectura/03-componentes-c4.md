@@ -54,7 +54,7 @@ flowchart LR
 | identidad | [identidad](#identidad) | F1 ✅ |
 | gateway | [gateway](#gateway) | F2 ✅ |
 | movimientos | [movimientos](#movimientos) | F3–F4 ✅ |
-| clasificacion | (pendiente) | F5–F6 |
+| clasificacion | (se documenta al cerrar F6) | F5 ✅ · F6 |
 | importacion | (pendiente) | F7 |
 | consultas | (pendiente) | F8–F9 |
 

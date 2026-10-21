@@ -1,0 +1,8 @@
+{
+  "categoriaId": "0192f3a1-7c4e-7a10-8b2c-3d4e5f600010",
+  "nombre": "Restauracion",
+  "color": "#d97706",
+  "descripcion": "Categoria creada por defecto",
+  "ocurrencias": ["restaurante", "bar ", "pub "],
+  "prioridad": 3
+}

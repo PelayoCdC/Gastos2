@@ -19,8 +19,8 @@ en los [ADR](../adr/README.md).
 | F2 | gateway | ✅ Terminada |
 | F3 | movimientos A: cuentas, documentos, transacciones manuales | ✅ Terminada |
 | F4 | movimientos B: registrar extracto, duplicados por conteo | ✅ Terminada |
-| F5 | clasificacion A: catálogo, prioridad, siembra, borrados | En curso |
-| F6 | clasificacion B: motor, automática, propagación, masiva | Pendiente |
+| F5 | clasificacion A: catálogo, prioridad, siembra, borrados | ✅ Terminada |
+| F6 | clasificacion B: motor, automática, propagación, masiva | En curso |
 | F7 | importacion: formatos, lectura Excel/CSV, importar | Pendiente |
 | F8 | consultas A: proyecciones, rejilla, xlsx, leer lo que acabas de escribir | Pendiente |
 | F9 | consultas B: informes, análisis, reconstrucción | Pendiente |
@@ -361,3 +361,66 @@ en los [ADR](../adr/README.md).
   - el reintento → el mismo JSON;
   - `/api/movimientos/documentos` muestra el documento con `numeroTransacciones: 2`;
   - la cuenta tiene `saldo: 997.00`.
+
+---
+
+## F5 · clasificacion A: catálogo, prioridad, siembra y borrados (2026-10-21)
+
+### Qué se hizo
+
+- **Contratos `clasificacion.v1`:** `CategoriaGuardada`, `CategoriaEliminada`, `EtiquetaGuardada` y
+  `EtiquetaEliminada`, con sus muestras aprobadas y su entrada en el catálogo.
+- **Mensajería:** `gastos.mensajeria.consume`, para que un consumidor declare también los topics que lee
+  (con la misma configuración que su productor) y pueda arrancar aunque el productor no lo haya hecho.
+- **Dominio `catalogo`:**
+  - agregados `Categoria` y `Etiqueta` (cascada y prioridad);
+  - VOs `NombreCatalogo`, `Ocurrencia` (conserva los espacios), `Ocurrencias` (sin repetidas por forma
+    normalizada) y `Color`;
+  - `CatalogoRepositorio`.
+- **Dominio `clasificacion`:** `ClasificacionRepositorio`, con las operaciones por conjuntos de los
+  borrados (desasignar una categoría, quitar una etiqueta).
+- **Aplicación:**
+  - `SembrarCatalogoInicial` (por evento y perezosa, idempotente);
+  - `GestionCategorias` y `GestionEtiquetas`;
+  - `EliminarDelCatalogo`;
+  - `ReordenarCatalogo` (permutación completa);
+  - `DefinicionesCatalogo` (exportar e importar por nombre).
+- **Infraestructura:**
+  - `CatalogoRepositorioJdbc`, `RegistroSiembraJdbc` (`INSERT IGNORE`) y `ClasificacionRepositorioJdbc`;
+  - `FuenteCatalogoInicialJson` (12 categorías y 23 etiquetas);
+  - `ConsumidorIdentidad` (Kafka + inbox) y `TraductorEventosClasificacion`;
+  - `CatalogoController`;
+  - Flyway V1 con todo el esquema del contexto, incluidas ya las tablas de clasificación de
+    transacciones para F6.
+
+### Decisiones y desviaciones
+
+- **Orden inicial deliberado.** "Suscripciones" va antes que "Compras online"; queda documentado en el
+  contexto.
+- **Importar definiciones no renombra lo que existe.** El primer intento de `CatalogoIT` destapó que
+  importar "salud" renombraba "Salud". Se corrigió para conservar el nombre del usuario.
+- **Siembra perezosa al principio de cada caso de uso**, no solo al listar. Así ninguna escritura del
+  usuario puede adelantarse a la siembra y chocar con los nombres iniciales.
+
+### Verificación
+
+- `./mvnw verify` en verde:
+  - `CatalogoTest` (5):
+    - ocurrencias con espacios y sin repetidas: "bar " no casa con "barcelona" ni " ibi" con "exhibicion";
+    - color;
+    - eventos solo ante cambios reales;
+    - quitar la cascada.
+  - `CatalogoIT` (6):
+    - el catálogo inicial en orden, con 20 de 23 etiquetas en cascada y `sinCategoria` = Bizum,
+      Transferencias y Efectivo;
+    - nombres únicos (409) y la cascada ajena (404);
+    - borrar Salud deja a Farmacia sin cascada y publica `EtiquetaGuardada` + `CategoriaEliminada`;
+    - reordenar (400 si no es una permutación);
+    - definiciones;
+    - **`UsuarioRegistrado` publicado en Kafka dos veces siembra una sola vez** (inbox).
+- **Smoke en compose** (identidad, movimientos, clasificacion y gateway):
+  - registrar un usuario en identidad deja su catálogo sembrado en clasificacion **en 1 s**, sin que el
+    usuario haga ninguna petición: identidad → outbox → Kafka → consumidor de clasificacion;
+  - borrar Salud a través del gateway → 204;
+  - en `clasificacion.eventos` quedan 12 `CategoriaGuardada`, 24 `EtiquetaGuardada` (23 de la siembra
+    y Farmacia sin cascada) y 1 `CategoriaEliminada`.

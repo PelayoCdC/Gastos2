@@ -1,0 +1,48 @@
+### Requiere haber iniciado sesión con http/identidad.http (variable {{token}}).
+
+### Catálogo: categorías en orden de prioridad (la primera vez se siembra el catálogo inicial)
+GET {{clasificacion}}/categorias
+Authorization: Bearer {{token}}
+
+### Etiquetas (filtros opcionales: categoriaId repetible y sinCategoria, combinados con OR)
+GET {{clasificacion}}/etiquetas?sinCategoria=true
+Authorization: Bearer {{token}}
+
+### Nueva categoría (va al final de la prioridad). Las ocurrencias conservan sus espacios.
+POST {{clasificacion}}/categorias
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "nombre": "Mascotas", "color": "#a16207", "ocurrencias": ["kiwoko", "veterinari", "tiendanimal"] }
+
+> {% client.global.set("categoria", response.body.id); %}
+
+### Nueva etiqueta con categoría en cascada
+POST {{clasificacion}}/etiquetas
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "nombre": "Veterinario", "ocurrencias": ["veterinari"], "categoriaId": "{{categoria}}" }
+
+### Reordenar: la lista completa de ids, de más a menos prioritaria
+PUT {{clasificacion}}/categorias/orden
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "ids": ["<id1>", "<id2>", "..."] }
+
+### Exportar las definiciones (por nombre, sin ids)
+GET {{clasificacion}}/definiciones
+Authorization: Bearer {{token}}
+
+### Importar definiciones: upsert por nombre normalizado (nunca borra)
+POST {{clasificacion}}/definiciones
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "categorias": [ { "nombre": "Deporte", "color": "#0d9488", "ocurrencias": ["decathlon"] } ],
+  "etiquetas": [ { "nombre": "Gimnasio", "ocurrencias": ["basic fit"], "categoria": "Deporte" } ] }
+
+### Borrar una categoría: se quita de transacciones y etiquetas
+DELETE {{clasificacion}}/categorias/{{categoria}}
+Authorization: Bearer {{token}}

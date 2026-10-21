@@ -18,6 +18,7 @@ import org.springframework.boot.kafka.autoconfigure.KafkaAutoConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.kafka.config.TopicBuilder;
+import org.springframework.kafka.core.KafkaAdmin;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.listener.CommonErrorHandler;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
@@ -102,17 +103,28 @@ public class MensajeriaAutoConfiguracion {
 	@Bean
 	@ConditionalOnProperty(name = "gastos.mensajeria.publica", havingValue = "true", matchIfMissing = true)
 	NewTopic topicPropio(PropiedadesMensajeria propiedades) {
-		return TopicBuilder.name(propiedades.topicPropio())
-				.partitions(propiedades.particiones())
-				.replicas(1)
-				.config(TopicConfig.RETENTION_MS_CONFIG, "-1")
-				.config(TopicConfig.RETENTION_BYTES_CONFIG, "-1")
-				.build();
+		return topicDeEventos(propiedades.topicPropio(), propiedades.particiones());
 	}
 
 	@Bean
 	NewTopic topicDlt(PropiedadesMensajeria propiedades) {
 		return TopicBuilder.name(propiedades.topicDlt()).partitions(1).replicas(1).build();
+	}
+
+	@Bean
+	KafkaAdmin.NewTopics topicsConsumidos(PropiedadesMensajeria propiedades) {
+		return new KafkaAdmin.NewTopics(propiedades.consume().stream()
+				.map(topic -> topicDeEventos(topic, propiedades.particiones()))
+				.toArray(NewTopic[]::new));
+	}
+
+	private static NewTopic topicDeEventos(String nombre, int particiones) {
+		return TopicBuilder.name(nombre)
+				.partitions(particiones)
+				.replicas(1)
+				.config(TopicConfig.RETENTION_MS_CONFIG, "-1")
+				.config(TopicConfig.RETENTION_BYTES_CONFIG, "-1")
+				.build();
 	}
 
 	/**

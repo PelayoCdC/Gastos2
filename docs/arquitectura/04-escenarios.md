@@ -7,12 +7,12 @@ código) en la fase en que se implementa.
 |---|---|---|
 | [Registro de usuario y publicación del evento](#41-registro-de-usuario) | F1 | ✅ |
 | [Inicio de sesión y petición autenticada](#42-inicio-de-sesión-y-petición-autenticada) | F1 (directo) / F2 (gateway) | ✅ |
-| Siembra del catálogo al registrarse | F5 | pendiente |
+| [Siembra del catálogo al registrarse](#44-siembra-del-catálogo-al-registrarse) | F5 | ✅ |
 | [Registro de un extracto en movimientos](#43-registro-de-un-extracto-en-movimientos) | F4 | ✅ (la parte de importacion llega en F7) |
 | Importación de un extracto de punta a punta (importacion → movimientos → clasificación automática → consultas) | F7 | pendiente |
 | Crear y clasificar una transacción a mano (dos servicios, *read-through*) | F6 | pendiente |
 | Leer lo que acabas de escribir (`Gastos-Secuencia` / `Gastos-Esperar`) | F8 | pendiente |
-| Borrar una categoría usada por etiquetas y transacciones | F5 | pendiente |
+| [Borrar una categoría usada por etiquetas y transacciones](#45-borrar-una-categoría-usada) | F5 | ✅ |
 | Reconstruir consultas reproduciendo Kafka | F9 | pendiente |
 | Restaurar un respaldo v1 (migración desde el back antiguo) | F10 | pendiente |
 
@@ -126,3 +126,53 @@ sequenceDiagram
 llamada con el mismo `extractoId` y recibe el mismo resultado; nada se importa dos veces. Si dos
 importaciones distintas del mismo fichero llegan a la vez, el bloqueo de la cuenta hace que la segunda
 vea las filas de la primera como duplicadas (lo comprueba `ExtractosIT`).
+
+## 4.4 Siembra del catálogo al registrarse
+
+Es la primera colaboración entre servicios por eventos.
+
+```mermaid
+sequenceDiagram
+    participant I as identidad
+    participant K as Kafka identidad.eventos
+    participant C as clasificacion (ConsumidorIdentidad)
+    participant DB as MariaDB (clasificacion)
+    I->>K: UsuarioRegistrado (vía outbox)
+    K->>C: entrega (al menos una vez)
+    rect rgb(235, 245, 255)
+    Note over C,DB: una transacción
+    C->>DB: INSERT inbox (eventoId, "clasificacion.siembra"); si ya existía, termina
+    C->>DB: INSERT IGNORE catalogo_sembrado; si ya estaba sembrado, termina
+    C->>DB: 12 categorías + 23 etiquetas (prioridad = orden del fichero)
+    C->>DB: outbox: CategoriaGuardada x 12, EtiquetaGuardada x 23
+    end
+```
+
+**Siembra perezosa.** Si el usuario llega a clasificacion antes que el evento (por ejemplo, Kafka va
+lento), el primer caso de uso que ejecuta siembra en su propia transacción. Cuando llega el evento,
+`catalogo_sembrado` ya existe y no hace nada. Medido en el smoke de F5: el catálogo estaba sembrado
+**1 s** después del registro, sin ninguna petición a clasificacion.
+
+## 4.5 Borrar una categoría usada
+
+```mermaid
+sequenceDiagram
+    actor U as Usuario
+    participant C as EliminarDelCatalogo
+    participant DB as MariaDB (clasificacion)
+    participant O as outbox
+    U->>C: DELETE /categorias/{Salud}
+    rect rgb(235, 245, 255)
+    Note over C,O: una transacción local
+    C->>DB: etiquetas con cascada a Salud (Farmacia): quitarCategoria()
+    C->>O: EtiquetaGuardada (Farmacia, sin categoría)
+    C->>DB: UPDATE clasificacion_transaccion SET categoria_id = NULL WHERE categoria_id = Salud
+    C->>DB: DELETE categoria
+    C->>O: CategoriaEliminada (evento de conjunto)
+    end
+    C-->>U: 204
+```
+
+En el back antiguo esta operación fallaba con un 500 por la clave foránea de las etiquetas. Aquí es
+posible en una transacción porque catálogo y asignaciones viven en el mismo servicio
+([ADR 0002](../adr/0002-asignaciones-en-clasificacion.md)).

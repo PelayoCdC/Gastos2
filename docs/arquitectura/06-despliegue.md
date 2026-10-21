@@ -11,7 +11,8 @@ Todo el sistema se despliega en local con un único `compose.yaml` en la raíz d
 | `gateway` | `Dockerfile` raíz, target `gateway` | **8090** (la única entrada) | Valida JWT con el JWKS de `identidad:8080`; CORS para `localhost:4200` |
 | `identidad` | `Dockerfile` raíz, target `identidad` | `127.0.0.1:8081` (solo para depurar) | Monta `infra/claves` de solo lectura; healthcheck `/actuator/health` |
 | `movimientos` | `Dockerfile` raíz, target `movimientos` | `127.0.0.1:8082` | Valida JWT con el JWKS de identidad |
-| resto de servicios | `Dockerfile` raíz, un target por servicio | `127.0.0.1:8083`–`8085` | Se añaden en F5–F9 |
+| `clasificacion` | `Dockerfile` raíz, target `clasificacion` | `127.0.0.1:8083` | Consume `identidad.eventos` y `movimientos.eventos` (grupo `clasificacion`) |
+| resto de servicios | `Dockerfile` raíz, un target por servicio | `127.0.0.1:8084`–`8085` | Se añaden en F7–F9 |
 
 **Imágenes.** El `Dockerfile` raíz tiene una etapa `build` que compila todo el monorepo una vez, con
 caché de `~/.m2` gracias a BuildKit, y una etapa final por servicio sobre `eclipse-temurin:21-jre`, que

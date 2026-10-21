@@ -90,3 +90,16 @@ documento o la transacción. Los importes viajan como número JSON con 2 decimal
 - **Eventos de conjunto:** se aplican con SQL por conjuntos (`WHERE documento_id = ?`).
 - **Eventos repetidos o tardíos:** las proyecciones comparan `versionAgregado` y descartan las versiones
   que ya tienen o anteriores. Las lápidas evitan que un evento tardío resucite una fila borrada.
+
+### clasificacion.eventos
+
+Productor: clasificacion. La clave es el usuario propietario.
+
+| Evento | Cuándo | Campos de `datos` | Consumidores |
+|---|---|---|---|
+| `CategoriaGuardada` | Crear, modificar o reordenar una categoría, o sembrar el catálogo inicial | `categoriaId`, `nombre`, `color`, `descripcion`, `ocurrencias[]`, `prioridad` (estado completo) | consultas |
+| `CategoriaEliminada` | Borrar una categoría. Evento de conjunto: las transacciones que la tenían quedan sin categoría. Las etiquetas que la aplicaban en cascada llegan **antes** como `EtiquetaGuardada` sin categoría | `categoriaId` | consultas |
+| `EtiquetaGuardada` | Crear, modificar o reordenar una etiqueta, quitarle la categoría o sembrar el catálogo | `etiquetaId`, `nombre`, `descripcion`, `ocurrencias[]`, `categoriaId` (cascada, o nulo), `prioridad` | consultas |
+| `EtiquetaEliminada` | Borrar una etiqueta. Evento de conjunto: se quita de todas las transacciones | `etiquetaId` | consultas |
+
+Las ocurrencias viajan tal cual, **con sus espacios** (`"bar "`): son parte del significado de la regla.

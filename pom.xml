@@ -30,6 +30,7 @@
 		<module>compartido/mensajeria</module>
 		<module>servicios/identidad</module>
 		<module>servicios/movimientos</module>
+		<module>servicios/clasificacion</module>
 		<module>servicios/gateway</module>
 	</modules>
 

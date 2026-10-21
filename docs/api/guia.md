@@ -46,6 +46,18 @@ petición.
 
 Ejemplos: [`http/identidad.http`](../../http/identidad.http).
 
+### movimientos (`/api/movimientos`)
+
+Cuentas (con saldo), documentos y transacciones manuales: tabla completa en
+[dominio/movimientos.md](../dominio/movimientos.md#api-a-través-del-gateway-apimovimientos).
+Ejemplos: [`http/movimientos.http`](../../http/movimientos.http).
+
+### clasificacion (`/api/clasificacion`)
+
+Catálogo (categorías, etiquetas, orden de prioridad y definiciones): tabla completa en
+[dominio/clasificacion.md](../dominio/clasificacion.md#api-del-catálogo-f5-a-través-del-gateway-apiclasificacion).
+Ejemplos: [`http/clasificacion.http`](../../http/clasificacion.http).
+
 ### Errores propios del gateway
 
 | Situación | Estado | `codigo` |

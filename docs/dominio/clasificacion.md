@@ -1,6 +1,6 @@
 # Contexto: clasificación ★ (core domain)
 
-**Tipo:** subdominio principal · **Servicio:** `servicios/clasificacion` · **Estado:** diseñado (se implementa en F5–F6)
+**Tipo:** subdominio principal · **Servicio:** `servicios/clasificacion` · **Estado:** ✅ catálogo (F5) · clasificación de transacciones en F6
 
 ## Responsabilidad
 
@@ -94,3 +94,43 @@ las entradas con ocurrencias.
   - `TransaccionClasificada` (con el motivo del cambio);
   - `ClasificacionRestaurada`.
 - **Consume:** `UsuarioRegistrado` y los eventos de transacciones y documentos de movimientos.
+
+## API del catálogo (F5), a través del gateway: `/api/clasificacion`
+
+| Método y ruta | Descripción |
+|---|---|
+| `GET /categorias` | Categorías en orden de prioridad: `{id, nombre, color, descripcion, ocurrencias[], prioridad}` |
+| `GET /categorias/{id}` | Una categoría (404 si no existe o es ajena) |
+| `POST /categorias` | `{nombre, color?, descripcion?, ocurrencias?[]}` → 201. Va al final de la prioridad. 409 `NOMBRE_DUPLICADO` |
+| `PUT /categorias/{id}` | Igual que el alta |
+| `DELETE /categorias/{id}` | 204. La quita de las transacciones y de las etiquetas que la aplicaban en cascada |
+| `PUT /categorias/orden` | `{ids:[...]}` con **todas** las del usuario, de más a menos prioritaria. 400 `ORDEN_INVALIDO` si no es una permutación |
+| `GET /etiquetas?categoriaId=&sinCategoria=` | Etiquetas en orden de prioridad, con `categoria {id, nombre, color}` (la de cascada) |
+| `POST/PUT/DELETE /etiquetas…` | Como las categorías. `categoriaId` debe ser del usuario (404 si no) |
+| `PUT /etiquetas/orden` | Como el de categorías |
+| `GET /definiciones` | `{categorias:[{nombre, color, descripcion, ocurrencias}], etiquetas:[{nombre, descripcion, ocurrencias, categoria}]}` en orden de prioridad |
+| `POST /definiciones` | Upsert por nombre normalizado → `{categorias:{creadas, actualizadas}, etiquetas:{creadas, actualizadas}}` |
+
+Ejemplos: [`http/clasificacion.http`](../../http/clasificacion.http).
+
+## Implementación del catálogo (F5)
+
+| Pieza | Clases |
+|---|---|
+| Agregados y VOs | `dominio/catalogo/{Categoria, Etiqueta, NombreCatalogo, Ocurrencia, Ocurrencias, Color}`, ids tipados |
+| Casos de uso | `aplicacion/catalogo/{GestionCategorias, GestionEtiquetas, EliminarDelCatalogo, ReordenarCatalogo, DefinicionesCatalogo}`, `aplicacion/siembra/SembrarCatalogoInicial` |
+| Puertos | `CatalogoRepositorio`, `ClasificacionRepositorio` (operaciones por conjuntos de los borrados), `FuenteCatalogoInicial`, `RegistroSiembra` |
+| Adaptadores | `CatalogoRepositorioJdbc` (ocurrencias en tablas hijas con posición), `RegistroSiembraJdbc` (`INSERT IGNORE`), `FuenteCatalogoInicialJson` (`catalogo-inicial.json`), `ConsumidorIdentidad` (Kafka + inbox) |
+
+**Decisiones de detalle:**
+- **Un repositorio para el catálogo.** Categorías y etiquetas son agregados distintos, pero se cargan
+  casi siempre juntas: las reglas necesitan el catálogo entero.
+- **Siembra perezosa en cada caso de uso**, además de la siembra por el evento. Si un usuario recién
+  registrado crea "Salud" antes de que llegue `UsuarioRegistrado`, la categoría no choca después con la
+  inicial: la siembra ocurre antes, en la misma transacción.
+- **El orden inicial es deliberado** (`catalogo-inicial.json`). "Suscripciones" va antes que "Compras
+  online", para que "PAYPAL *SPOTIFY" acabe en Ocio y cultura tanto por cascada como por categoría
+  directa, que también tiene Ocio antes que Compras.
+- **Importar definiciones conserva el nombre existente.** El fichero solo empareja por nombre
+  normalizado, así que importar "salud" no renombra "Salud".
+- **Las ocurrencias** se guardan con collation binaria y sin recortar.

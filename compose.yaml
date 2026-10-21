@@ -101,6 +101,25 @@ services:
     mem_limit: 512m
     healthcheck: *salud-spring
 
+  clasificacion:
+    build:
+      context: .
+      target: clasificacion
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mariadb://mariadb:3306/clasificacion
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      GASTOS_SEGURIDAD_JWK_SET_URI: http://identidad:8080/.well-known/jwks.json
+      GASTOS_SERVICIOS_MOVIMIENTOS: http://movimientos:8080
+    ports:
+      - "127.0.0.1:8083:8080"
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    mem_limit: 512m
+    healthcheck: *salud-spring
+
   gateway:
     build:
       context: .
