@@ -1,8 +1,10 @@
 package es.gastos.compartido.web;
 
+import es.gastos.kernel.aplicacion.ServicioNoDisponible;
 import es.gastos.kernel.dominio.Conflicto;
 import es.gastos.kernel.dominio.ExcepcionDominio;
 import es.gastos.kernel.dominio.RecursoNoEncontrado;
+import org.springframework.core.retry.RetryException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -14,6 +16,7 @@ import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
@@ -43,6 +46,16 @@ public class ManejadorErrores extends ResponseEntityExceptionHandler {
 			default -> HttpStatus.BAD_REQUEST;
 		};
 		return ResponseEntity.status(estado).body(problema(estado, excepcion.codigo(), excepcion.getMessage()));
+	}
+
+	/**
+	 * Otro servicio no responde: lo declara la aplicación ({@link ServicioNoDisponible}) o lo detecta el
+	 * cliente HTTP tras agotar los reintentos (sin red o conexión rechazada). El cliente puede reintentar.
+	 */
+	@ExceptionHandler({ServicioNoDisponible.class, ResourceAccessException.class, RetryException.class})
+	ResponseEntity<ProblemDetail> servicioNoDisponible(Exception excepcion) {
+		return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+				.body(problema(HttpStatus.SERVICE_UNAVAILABLE, "SERVICIO_NO_DISPONIBLE", "Un servicio necesario no esta disponible; reintenta en unos segundos"));
 	}
 
 	@ExceptionHandler(MethodArgumentTypeMismatchException.class)

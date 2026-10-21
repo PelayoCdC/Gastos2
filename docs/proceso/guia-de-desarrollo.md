@@ -93,4 +93,9 @@ servicios/<svc>/src/main/resources/db/migration/   Flyway V1__..., V2__...
 - Nunca se usa `LocalDate.now()` ni similares en `dominio`/`aplicacion`: se inyecta un `Clock`.
 - **En Git Bash**, `curl -d` con tildes no envía UTF-8: usa `--data-binary @fichero.json`, o mejor los
   `http/*.http`.
+- **Jackson 3 rechaza los primitivos ausentes.** En los records de petición, un `boolean` o `int` que el
+  cliente puede omitir da 400. Usa `Boolean` o `Integer` y decide el valor por defecto en el controlador.
+- **Guardar dos veces en la misma unidad de trabajo.** Un agregado nuevo sigue siendo "nuevo" después
+  de guardarlo (su `versionCargada` es 0), así que un segundo `guardar` volvería a insertarlo. Si
+  necesitas seguir trabajando con él, recárgalo del repositorio (como `TransaccionesConocidas`).
 - Los commits se hacen por fase o por unidad coherente, con el mensaje en español.

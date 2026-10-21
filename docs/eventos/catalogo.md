@@ -102,4 +102,11 @@ Productor: clasificacion. La clave es el usuario propietario.
 | `EtiquetaGuardada` | Crear, modificar o reordenar una etiqueta, quitarle la categoría o sembrar el catálogo | `etiquetaId`, `nombre`, `descripcion`, `ocurrencias[]`, `categoriaId` (cascada, o nulo), `prioridad` | consultas |
 | `EtiquetaEliminada` | Borrar una etiqueta. Evento de conjunto: se quita de todas las transacciones | `etiquetaId` | consultas |
 
+| `TransaccionClasificada` | Cambia la categoría o las etiquetas de una transacción: clasificación automática al importar, asignación manual, propagación, aplicación masiva, reetiquetado o restauración | `transaccionId`, `categoriaId` (o nulo), `etiquetaIds[]` (en orden), `motivo` (MANUAL, AUTOMATICA, PROPAGACION, MASIVA, REINICIO o MIGRACION) | consultas |
+
 Las ocurrencias viajan tal cual, **con sus espacios** (`"bar "`): son parte del significado de la regla.
+
+`TransaccionClasificada` lleva el **estado completo** de la clasificación, no un cambio parcial: el
+consumidor sustituye lo que tenía si `versionAgregado` es mayor. Si llega antes que el
+`TransaccionRegistrada` de la misma transacción (topics distintos, sin orden entre ellos), consultas
+guarda la parte de clasificación de la fila y la muestra cuando llegan los hechos.

@@ -10,7 +10,8 @@ código) en la fase en que se implementa.
 | [Siembra del catálogo al registrarse](#44-siembra-del-catálogo-al-registrarse) | F5 | ✅ |
 | [Registro de un extracto en movimientos](#43-registro-de-un-extracto-en-movimientos) | F4 | ✅ (la parte de importacion llega en F7) |
 | Importación de un extracto de punta a punta (importacion → movimientos → clasificación automática → consultas) | F7 | pendiente |
-| Crear y clasificar una transacción a mano (dos servicios, *read-through*) | F6 | pendiente |
+| [Clasificación automática de un extracto importado](#46-clasificación-automática-de-un-extracto-importado) | F6 | ✅ |
+| [Crear y clasificar una transacción a mano (dos servicios, *read-through*)](#47-crear-y-clasificar-una-transacción-a-mano) | F6 | ✅ |
 | Leer lo que acabas de escribir (`Gastos-Secuencia` / `Gastos-Esperar`) | F8 | pendiente |
 | [Borrar una categoría usada por etiquetas y transacciones](#45-borrar-una-categoría-usada) | F5 | ✅ |
 | Reconstruir consultas reproduciendo Kafka | F9 | pendiente |
@@ -176,3 +177,55 @@ sequenceDiagram
 En el back antiguo esta operación fallaba con un 500 por la clave foránea de las etiquetas. Aquí es
 posible en una transacción porque catálogo y asignaciones viven en el mismo servicio
 ([ADR 0002](../adr/0002-asignaciones-en-clasificacion.md)).
+
+## 4.6 Clasificación automática de un extracto importado
+
+```mermaid
+sequenceDiagram
+    participant M as movimientos
+    participant K as Kafka movimientos.eventos
+    participant C as clasificacion (ConsumidorMovimientos)
+    participant DB as MariaDB (clasificacion)
+    M->>K: DocumentoRegistrado, TransaccionRegistrada x N (origen IMPORTACION)
+    loop por cada TransaccionRegistrada
+        K->>C: evento
+        rect rgb(235, 245, 255)
+        C->>DB: conocer (o sincronizar por versión) la copia: concepto, clave, documento
+        C->>DB: cargar catálogo → MotorClasificacion
+        C->>C: etiquetas que casan → cascada → categoría (si falta)
+        C->>DB: guardar + outbox TransaccionClasificada (motivo AUTOMATICA)
+        end
+    end
+```
+
+Resultado medido en el smoke de F6 con el catálogo inicial:
+
+| Concepto | Categoría | Etiquetas |
+|---|---|---|
+| "COMPRA LUPA SANTANDER" | Alimentacion (cascada) | Supermercado |
+| "PAYPAL *SPOTIFY" | **Ocio y cultura** (cascada de Suscripciones, que tiene más prioridad que Compras online) | Suscripciones, Compras online |
+| "BIZUM: Cena" | (ninguna) | Bizum |
+
+## 4.7 Crear y clasificar una transacción a mano
+
+El front crea los hechos en movimientos y la clasifica en clasificacion justo después, antes de que el
+evento haya llegado ([ADR 0002](../adr/0002-asignaciones-en-clasificacion.md)).
+
+```mermaid
+sequenceDiagram
+    actor U as Front
+    participant M as movimientos
+    participant C as clasificacion
+    U->>M: POST /api/movimientos/transacciones {concepto, importe...}
+    M-->>U: 201 {id}
+    U->>C: PUT /api/clasificacion/transacciones/{id} {nuevaCategoria, nuevasEtiquetas}
+    C->>C: ¿la conozco? No (el evento aún no ha llegado)
+    C->>M: GET /internal/transacciones/{id} + JWT del usuario (read-through)
+    M-->>C: {id, documentoId, concepto}
+    C->>C: conocer + buscar o crear categoría y etiquetas + asignar (MANUAL)
+    C-->>U: 200 {categoria, etiquetas}
+    Note over M,C: después llega TransaccionRegistrada (origen MANUAL): actualiza la copia, sin clasificar
+```
+
+Si la transacción no existe o es de otro usuario, movimientos responde 404 y clasificacion devuelve el
+mismo 404.

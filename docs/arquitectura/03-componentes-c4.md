@@ -54,7 +54,7 @@ flowchart LR
 | identidad | [identidad](#identidad) | F1 ✅ |
 | gateway | [gateway](#gateway) | F2 ✅ |
 | movimientos | [movimientos](#movimientos) | F3–F4 ✅ |
-| clasificacion | (se documenta al cerrar F6) | F5 ✅ · F6 |
+| clasificacion | [clasificacion](#clasificacion) | F5–F6 ✅ |
 | importacion | (pendiente) | F7 |
 | consultas | (pendiente) | F8–F9 |
 
@@ -161,3 +161,48 @@ flowchart LR
 
 Dependencias entre los módulos del dominio, sin ciclos (lo verifica ArchUnit):
 `transaccion → documento → cuenta`, y todos ellos dependen de `comun`.
+
+## clasificacion
+
+```mermaid
+flowchart LR
+    subgraph in [Entrada]
+        rcat["CatalogoController<br/>/categorias, /etiquetas, /definiciones"]
+        rcla["ClasificacionController<br/>/transacciones/{id}, /aplicacion-masiva, /automatica"]
+        kid["ConsumidorIdentidad<br/>UsuarioRegistrado (inbox)"]
+        kmov["ConsumidorMovimientos<br/>Transaccion*, DocumentoEliminado"]
+    end
+    subgraph app [aplicacion]
+        cat["GestionCategorias · GestionEtiquetas ·<br/>EliminarDelCatalogo · ReordenarCatalogo · DefinicionesCatalogo"]
+        sie["SembrarCatalogoInicial"]
+        cla["ClasificarTransacciones · ClasificacionAutomatica"]
+        sin["SincronizarTransacciones"]
+        ori(["OrigenTransacciones (read-through)"])
+        fue(["FuenteCatalogoInicial · RegistroSiembra"])
+    end
+    subgraph dom [dominio]
+        catd["catalogo: Categoria, Etiqueta,<br/>Ocurrencias, NombreCatalogo, Color"]
+        clad["clasificacion: ClasificacionTransaccion,<br/>MotorClasificacion, OrigenAsignacion"]
+        reps(["CatalogoRepositorio · ClasificacionRepositorio"])
+    end
+    subgraph out [Salida]
+        jdbc["CatalogoRepositorioJdbc ·<br/>ClasificacionRepositorioJdbc · RegistroSiembraJdbc"]
+        json["FuenteCatalogoInicialJson<br/>(catalogo-inicial.json)"]
+        http["OrigenTransaccionesHttp<br/>(RestClient + JWT + @Retryable)"]
+        trad["TraductorEventosClasificacion → outbox"]
+    end
+    rcat --> cat
+    rcla --> cla
+    kid --> sie
+    kmov --> sin
+    cat & cla & sin --> sie
+    cat & cla & sin & sie --> catd & clad & reps
+    cla --> ori
+    sie --> fue
+    jdbc -. implementa .-> reps & fue
+    json -. implementa .-> fue
+    http -. implementa .-> ori
+    catd & clad --> trad
+```
+
+Dependencias del dominio: `clasificacion → catalogo` (usa sus ids y sus reglas), nunca al revés.

@@ -1,6 +1,8 @@
 package es.gastos.clasificacion.infraestructura.eventos;
 
 import es.gastos.clasificacion.dominio.catalogo.CategoriaId;
+import es.gastos.clasificacion.dominio.catalogo.EtiquetaId;
+import es.gastos.contratos.clasificacion.v1.TransaccionClasificada;
 import es.gastos.compartido.mensajeria.TraductorEventos;
 import es.gastos.contratos.EventoIntegracion;
 import es.gastos.contratos.clasificacion.v1.CategoriaEliminada;
@@ -27,6 +29,9 @@ class TraductorEventosClasificacion implements TraductorEventos {
 			case es.gastos.clasificacion.dominio.catalogo.EtiquetaGuardada e -> new EtiquetaGuardada(e.etiquetaId().valor(),
 					e.nombre().valor(), e.descripcion(), e.ocurrencias().textos(), categoria(e.categoriaId()), e.prioridad());
 			case es.gastos.clasificacion.dominio.catalogo.EtiquetaEliminada e -> new EtiquetaEliminada(e.etiquetaId().valor());
+			case es.gastos.clasificacion.dominio.clasificacion.TransaccionClasificada e -> new TransaccionClasificada(
+					e.transaccionId().valor(), categoria(e.categoria()), e.etiquetas().stream().map(EtiquetaId::valor).toList(),
+					e.motivo().name());
 			default -> null;
 		};
 		return Optional.ofNullable(traducido);

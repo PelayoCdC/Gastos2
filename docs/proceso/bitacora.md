@@ -20,8 +20,8 @@ en los [ADR](../adr/README.md).
 | F3 | movimientos A: cuentas, documentos, transacciones manuales | ✅ Terminada |
 | F4 | movimientos B: registrar extracto, duplicados por conteo | ✅ Terminada |
 | F5 | clasificacion A: catálogo, prioridad, siembra, borrados | ✅ Terminada |
-| F6 | clasificacion B: motor, automática, propagación, masiva | En curso |
-| F7 | importacion: formatos, lectura Excel/CSV, importar | Pendiente |
+| F6 | clasificacion B: motor, automática, propagación, masiva | ✅ Terminada |
+| F7 | importacion: formatos, lectura Excel/CSV, importar | En curso |
 | F8 | consultas A: proyecciones, rejilla, xlsx, leer lo que acabas de escribir | Pendiente |
 | F9 | consultas B: informes, análisis, reconstrucción | Pendiente |
 | F10 | Respaldo v1 y migración de los datos reales | Pendiente |
@@ -424,3 +424,77 @@ en los [ADR](../adr/README.md).
   - borrar Salud a través del gateway → 204;
   - en `clasificacion.eventos` quedan 12 `CategoriaGuardada`, 24 `EtiquetaGuardada` (23 de la siembra
     y Farmacia sin cascada) y 1 `CategoriaEliminada`.
+
+---
+
+## F6 · clasificacion B: motor, automática, propagación y aplicación en bloque (2026-10-22)
+
+### Qué se hizo
+
+- **Contrato:** `clasificacion.v1.TransaccionClasificada`, con el estado completo y el motivo.
+- **Dominio:**
+  - `ClasificacionTransaccion`: copia de origen versionada y asignaciones con `OrigenAsignacion`; emite
+    un único evento por operación si cambian la categoría o las etiquetas;
+  - `MotorClasificacion`: instantánea del catálogo por prioridad, con las reglas de etiquetas, cascada y
+    categoría;
+  - `ModoAutomatico` y `MotivoClasificacion`.
+- **Aplicación:**
+  - `ClasificarTransacciones`: manual, similares, propagación y en bloque;
+  - `ClasificacionAutomatica`: ETIQUETAS, CATEGORIAS y REINICIAR, con `forzar`;
+  - `SincronizarTransacciones`: copia más clasificación automática de las importadas, una vez;
+  - las piezas `TransaccionesConocidas` (*read-through*) y `ResolucionCatalogo` (ids propios o nombres
+    nuevos).
+- **Infraestructura:**
+  - `ClasificacionRepositorioJdbc` completo;
+  - `OrigenTransaccionesHttp`: RestClient con el JWT de la petición reenviado y `@Retryable` de
+    Spring Framework 7 (`@EnableResilientMethods`);
+  - `ConsumidorMovimientos`;
+  - `ClasificacionController`.
+- **Compartido:**
+  - `ServicioNoDisponible` en el kernel;
+  - `ManejadorErrores` traduce `ServicioNoDisponible`, `ResourceAccessException` y `RetryException`
+    a 503 `SERVICIO_NO_DISPONIBLE`.
+
+### Problemas encontrados
+
+- **Doble inserción tras el *read-through*.** La transacción recién conocida se guardaba y, en la misma
+  unidad de trabajo, el caso de uso la volvía a guardar como "nueva", lo que daba clave duplicada.
+  - **Solución:** recargarla del repositorio tras el primer guardado.
+  - La trampa queda anotada en la guía de desarrollo.
+- **Jackson 3 y los primitivos ausentes.** `{"modo":"REINICIAR"}` daba 400 porque `forzar` era un
+  `boolean`: Jackson 3 falla por defecto con primitivos nulos o ausentes.
+  - **Solución:** usar `Boolean` y decidir el valor por defecto en el controlador. También anotado en
+    la guía.
+
+### Decisiones
+
+- **El consumidor de movimientos no usa inbox:** es idempotente por versión de origen y por
+  `auto_clasificada`. El inbox queda para los efectos que no tienen esa protección natural (la siembra).
+- **Procesa mensaje a mensaje, no por lotes.** El catálogo se carga por cada fila importada, a cambio
+  de aislar los errores. Documentado como compromiso en el código y en el contexto.
+
+### Verificación
+
+- `./mvnw verify` en verde para clasificacion:
+  - `MotorClasificacionTest` (10 casos):
+    - portados de la app móvil: acumular etiquetas sin duplicar, cascada que no pisa, categoría que no
+      pisa y gana la de mayor prioridad;
+    - prioridad en la cascada ("PAYPAL *SPOTIFY" → Ocio);
+    - REINICIAR respeta lo manual y `forzar` lo quita todo;
+    - sin cambios no hay evento, y confirmar a mano versiona sin evento;
+    - propagar;
+    - en bloque (ANADIR/SUSTITUIR, sin borrar la categoría);
+    - versión de origen antigua ignorada.
+  - `ClasificacionIT` (5 escenarios):
+    - importada clasificada sola y manual no;
+    - *read-through* con el JWT reenviado, nombres nuevos sin duplicar y 404 ajenos;
+    - propagación 2 → 0 y 404 para otro usuario;
+    - en bloque con ajenas ignoradas y sustituir con una lista vacía;
+    - automática que respeta lo manual, modo inválido → 400, y borrado por evento que se olvida.
+- **Smoke de punta a punta en compose** (identidad, movimientos, clasificacion y gateway):
+  - un extracto registrado en movimientos acaba clasificado en clasificacion sin intervención:
+    - "COMPRA LUPA" → Alimentacion por cascada con Supermercado;
+    - "PAYPAL *SPOTIFY" → Ocio y cultura;
+    - "BIZUM: Cena" → etiqueta Bizum.
+  - Una transacción manual recién creada se clasifica al momento a través del gateway, con
+    *read-through* real a movimientos.

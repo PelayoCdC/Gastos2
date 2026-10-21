@@ -46,3 +46,36 @@ Content-Type: application/json
 ### Borrar una categoría: se quita de transacciones y etiquetas
 DELETE {{clasificacion}}/categorias/{{categoria}}
 Authorization: Bearer {{token}}
+
+### Clasificación de una transacción (requiere {{transaccion}} de http/movimientos.http)
+GET {{clasificacion}}/transacciones/{{transaccion}}
+Authorization: Bearer {{token}}
+
+### Asignar a mano: sustituye categoría y etiquetas; los nombres nuevos se crean si no existen
+PUT {{clasificacion}}/transacciones/{{transaccion}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "nuevaCategoria": "Restauracion", "nuevasEtiquetas": ["Desayunos"] }
+
+### Similares (misma clave de concepto: sin fechas, tildes ni mayúsculas)
+GET {{clasificacion}}/transacciones/{{transaccion}}/similares
+Authorization: Bearer {{token}}
+
+### Propagar su clasificación a las similares
+POST {{clasificacion}}/transacciones/{{transaccion}}/propagacion
+Authorization: Bearer {{token}}
+
+### Aplicar en bloque (ANADIR o SUSTITUIR etiquetas; las ajenas se ignoran)
+POST {{clasificacion}}/aplicacion-masiva
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "transaccionIds": ["{{transaccion}}"], "nuevasEtiquetas": ["Revisar"], "modoEtiquetas": "ANADIR" }
+
+### Reaplicar las reglas a todo el histórico (REINICIAR respeta lo manual salvo "forzar": true)
+POST {{clasificacion}}/automatica
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "modo": "REINICIAR" }

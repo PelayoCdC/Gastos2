@@ -1,6 +1,6 @@
 # Contexto: clasificación ★ (core domain)
 
-**Tipo:** subdominio principal · **Servicio:** `servicios/clasificacion` · **Estado:** ✅ catálogo (F5) · clasificación de transacciones en F6
+**Tipo:** subdominio principal · **Servicio:** `servicios/clasificacion` · **Estado:** ✅ implementado (F5 catálogo · F6 clasificación de transacciones)
 
 ## Responsabilidad
 
@@ -134,3 +134,40 @@ Ejemplos: [`http/clasificacion.http`](../../http/clasificacion.http).
 - **Importar definiciones conserva el nombre existente.** El fichero solo empareja por nombre
   normalizado, así que importar "salud" no renombra "Salud".
 - **Las ocurrencias** se guardan con collation binaria y sin recortar.
+
+## API de clasificación de transacciones (F6)
+
+| Método y ruta | Descripción |
+|---|---|
+| `GET /transacciones/{id}` | `{transaccionId, categoria {id, nombre, color, origen}, etiquetas [{id, nombre, origen}]}`. Si la transacción aún no ha llegado por eventos, se consulta a movimientos (*read-through*) |
+| `PUT /transacciones/{id}` | `{categoriaId?, nuevaCategoria?, etiquetaIds?[], nuevasEtiquetas?[]}`: **sustituye** la clasificación (origen MANUAL). Los nombres nuevos se buscan o se crean |
+| `GET /transacciones/{id}/similares` | `{similares, claveConcepto}` |
+| `POST /transacciones/{id}/propagacion` | `{actualizadas}`. Copia categoría y etiquetas a las similares; repetirlo devuelve 0 |
+| `POST /aplicacion-masiva` | `{transaccionIds[], categoriaId?/nuevaCategoria?, etiquetaIds?[], nuevasEtiquetas?[], modoEtiquetas: ANADIR\|SUSTITUIR}` → `{actualizadas, ignoradas}` (ajenas o inexistentes) |
+| `POST /automatica` | `{modo: ETIQUETAS\|CATEGORIAS\|REINICIAR, forzar?}` → `{procesadas, etiquetadas, categorizadas}` |
+
+## Implementación de la clasificación (F6)
+
+| Pieza | Clases |
+|---|---|
+| Agregado | `dominio/clasificacion/ClasificacionTransaccion`, con la copia de origen y las asignaciones con `OrigenAsignacion` |
+| Servicio de dominio | `MotorClasificacion`: instantánea del catálogo ordenada por prioridad; etiquetas que casan, cascada y categoría que casa |
+| Casos de uso | `aplicacion/clasificacion/{ClasificarTransacciones, ClasificacionAutomatica}`, `aplicacion/sincronizacion/SincronizarTransacciones` |
+| Piezas de aplicación | `TransaccionesConocidas` (local o *read-through*), `ResolucionCatalogo` (ids propios o nombres nuevos, buscar o crear) |
+| Puertos | `ClasificacionRepositorio`, `OrigenTransacciones` (*read-through*) |
+| Adaptadores | `ClasificacionRepositorioJdbc`, `OrigenTransaccionesHttp` (RestClient, JWT reenviado, `@Retryable`), `ConsumidorMovimientos` (Kafka), `ClasificacionController` |
+
+**Decisiones de detalle:**
+- **Un único evento por operación,** con el estado completo de la clasificación. Si solo cambian los
+  orígenes (el usuario confirma a mano lo que puso una regla), se guarda sin evento: para los demás
+  contextos nada ha cambiado.
+- **Idempotencia del consumidor de movimientos sin inbox.** La copia de origen descarta los eventos
+  antiguos por versión, y la clasificación automática solo ocurre una vez (`auto_clasificada`).
+- **Consumidor mensaje a mensaje.** Cada fila importada carga el catálogo, lo que es más trabajo que
+  hacerlo por lote, pero el error de un mensaje no arrastra a los demás. El volumen de un extracto no
+  lo hace notar.
+- **El *read-through* reenvía el JWT de la petición.** Movimientos aplica su propia comprobación de
+  propiedad y no hacen falta cuentas de servicio. Los fallos de red se reintentan dos veces y después
+  dan 503.
+- **No se reclasifica al corregir hechos.** Si el usuario corrige el concepto, la clasificación no
+  cambia sola, igual que antes.
