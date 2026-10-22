@@ -147,6 +147,8 @@ services:
       SPRING_DATASOURCE_URL: jdbc:mariadb://mariadb:3306/consultas
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       GASTOS_SEGURIDAD_JWK_SET_URI: http://identidad:8080/.well-known/jwks.json
+      # Subirla reconstruye consultas desde Kafka (scripts/reconstruir-consultas.sh la guarda en .env)
+      GASTOS_CONSULTAS_PROYECCION_VERSION: ${GASTOS_CONSULTAS_PROYECCION_VERSION:-1}
     ports:
       - "127.0.0.1:8085:8080"
     depends_on:

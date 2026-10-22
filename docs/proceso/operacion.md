@@ -20,6 +20,9 @@ docker compose down -v                      # BORRA los datos (MariaDB y el log 
 docker compose exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list
 docker compose exec kafka /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server localhost:9092 \
   --topic identidad.eventos --from-beginning --property print.key=true
+# Eventos de un topic (suma de las posiciones finales de sus particiones)
+docker compose exec kafka /opt/kafka/bin/kafka-get-offsets.sh --bootstrap-server localhost:9092 \
+  --topic movimientos.eventos
 ```
 
 En Git Bash, las rutas que empiezan por `/` se convierten a rutas de Windows. Antepón
@@ -39,6 +42,26 @@ scripts/generar-claves-dev.sh --forzar   # la regenera: los tokens emitidos deja
 - El JWKS público está en `GET /.well-known/jwks.json`. El `kid` es la huella de la clave, así que no
   cambia mientras la clave no cambie.
 
+## Reconstruir consultas
+
+Las tablas de consultas se pueden tirar y rehacer desde Kafka en cualquier momento (cambio de esquema
+de lectura, proyección estropeada, o simplemente para comprobar que se puede):
+
+```bash
+scripts/reconstruir-consultas.sh        # versión actual + 1
+scripts/reconstruir-consultas.sh 7      # una versión concreta
+```
+
+El script guarda `GASTOS_CONSULTAS_PROYECCION_VERSION` en `.env` (para que los siguientes
+`docker compose up` usen la misma versión), recrea el contenedor de consultas y espera a que el retraso
+de la proyección sea 0. Al arrancar con una versión distinta de la guardada, consultas vacía sus tablas
+y relee los topics desde el principio.
+
+- Progreso: `curl http://127.0.0.1:8085/actuator/health/proyeccion` (`retraso` = eventos pendientes).
+- Durante la reconstrucción las consultas devuelven lo que lleve proyectado.
+- **Requisito:** el volumen `datos-kafka` tiene que conservar todo el historial (retención infinita). Si
+  se pierde, consultas no se puede reconstruir; el plan B (`republicar-estado`) llega en F11.
+
 ## Problemas conocidos del entorno (Windows + Docker Desktop)
 
 - **Docker Desktop no arranca tras reiniciar Windows.** El backend falla con "initializing Inference
@@ -56,7 +79,6 @@ scripts/generar-claves-dev.sh --forzar   # la regenera: los tokens emitidos deja
 
 | Tarea | Fase |
 |---|---|
-| Reconstruir `consultas` | F9 |
 | Restaurar un respaldo y migrar desde el back antiguo | F10 |
 | Revisar los DLT y reprocesar eventos | F11 |
 | Observabilidad (trazas, métricas, logs) | F11 |

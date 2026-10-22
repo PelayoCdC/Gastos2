@@ -32,3 +32,42 @@ GET {{consultas}}/transacciones/exportacion?desde=2026-01-01&orden=fechaContable
 Authorization: Bearer {{token}}
 
 >> transacciones.xlsx
+
+### Informes: resumen mensual del año (con categorías y etiquetas a la vez, mandan las categorías)
+GET {{consultas}}/informes/resumen-mensual?desde=2026-01-01&hasta=2026-12-31
+Authorization: Bearer {{token}}
+
+### Saldo al final de cada día, por cuenta
+GET {{consultas}}/informes/evolucion-saldo?desde=2026-01-01
+Authorization: Bearer {{token}}
+
+### Gasto por categoría (con un grupo "categoria": null para lo no clasificado) y por etiqueta
+GET {{consultas}}/informes/gastos-por-categoria?desde=2026-01-01
+Authorization: Bearer {{token}}
+
+###
+GET {{consultas}}/informes/gastos-por-etiqueta?desde=2026-01-01
+Authorization: Bearer {{token}}
+
+### Calendario de gasto diario y composición mensual por categoría
+GET {{consultas}}/informes/gasto-diario?desde=2026-01-01
+Authorization: Bearer {{token}}
+
+###
+GET {{consultas}}/informes/gastos-mensuales-por-categoria?desde=2026-01-01
+Authorization: Bearer {{token}}
+
+### Análisis: dónde más se gasta (agrupando conceptos sin las fechas que mete el banco)
+GET {{consultas}}/informes/top-conceptos?desde=2026-01-01&limite=10
+Authorization: Bearer {{token}}
+
+### Suscripciones y recibos detectados en todo el histórico, con su coste anual
+GET {{consultas}}/informes/recurrentes
+Authorization: Bearer {{token}}
+
+### Bizums por contacto
+GET {{consultas}}/informes/bizum?desde=2026-01-01
+Authorization: Bearer {{token}}
+
+### Estado de la proyección (versión, grupo y eventos pendientes); sin token, directo al servicio
+GET http://localhost:8085/actuator/health/proyeccion

@@ -13,7 +13,7 @@ Todo el sistema se despliega en local con un único `compose.yaml` en la raíz d
 | `movimientos` | `Dockerfile` raíz, target `movimientos` | `127.0.0.1:8082` | Valida JWT con el JWKS de identidad |
 | `clasificacion` | `Dockerfile` raíz, target `clasificacion` | `127.0.0.1:8083` | Consume `identidad.eventos` y `movimientos.eventos` (grupo `clasificacion`) |
 | `importacion` | `Dockerfile` raíz, target `importacion` | `127.0.0.1:8084` | Valida JWT con el JWKS de identidad; llama a `movimientos:8080/internal/extractos`; multipart de hasta 10 MB |
-| `consultas` | `Dockerfile` raíz, target `consultas` | `127.0.0.1:8085` | Consume `movimientos.eventos` y `clasificacion.eventos` (grupo `consultas-v1`, por lotes); no publica |
+| `consultas` | `Dockerfile` raíz, target `consultas` | `127.0.0.1:8085` | Consume `movimientos.eventos` y `clasificacion.eventos` (grupo `consultas-v<GASTOS_CONSULTAS_PROYECCION_VERSION>`, por lotes); no publica; `/actuator/health/proyeccion` con el retraso |
 
 **Imágenes.** El `Dockerfile` raíz tiene una etapa `build` que compila todo el monorepo una vez, con
 caché de `~/.m2` gracias a BuildKit, y una etapa final por servicio sobre `eclipse-temurin:21-jre`, que

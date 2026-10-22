@@ -3,8 +3,10 @@ package es.gastos.consultas.aplicacion;
 import es.gastos.compartido.pruebas.dobles.UnidadDeTrabajoDirecta;
 import es.gastos.consultas.aplicacion.consistencia.EsperarConsistencia;
 import es.gastos.consultas.aplicacion.consistencia.PosicionesLectura;
+import es.gastos.consultas.aplicacion.proyeccion.EstadoProyeccion;
 import es.gastos.consultas.aplicacion.proyeccion.Proyeccion;
 import es.gastos.consultas.aplicacion.proyeccion.ProyectarEventos;
+import es.gastos.consultas.aplicacion.proyeccion.ReconstruirProyeccion;
 import es.gastos.consultas.dominio.consistencia.SecuenciasEsperadas;
 import es.gastos.contratos.EventoIntegracion;
 import es.gastos.contratos.Sobre;
@@ -23,6 +25,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalInt;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -100,6 +103,35 @@ class ConsultasAplicacionTest {
 		pausas.clear();
 		assertThat(esperar.esperar(this.ana, SecuenciasEsperadas.de("identidad=999"))).as("contexto no proyectado").isTrue();
 		assertThat(pausas).isEmpty();
+	}
+
+	@Test
+	void reconstruirVaciaLasTablasSoloCuandoCambiaLaVersion() {
+		List<String> acciones = new ArrayList<>();
+		int[] guardada = {0};
+		EstadoProyeccion estado = new EstadoProyeccion() {
+			@Override
+			public OptionalInt version() {
+				return guardada[0] == 0 ? OptionalInt.empty() : OptionalInt.of(guardada[0]);
+			}
+
+			@Override
+			public void vaciar() {
+				acciones.add("vaciar");
+			}
+
+			@Override
+			public void fijarVersion(int version) {
+				guardada[0] = version;
+			}
+		};
+		ReconstruirProyeccion reconstruir = new ReconstruirProyeccion(estado, new UnidadDeTrabajoDirecta());
+
+		assertThat(reconstruir.prepararVersion(1)).as("primera vez: pudo haber datos sin versión").isTrue();
+		assertThat(reconstruir.prepararVersion(1)).isFalse();
+		assertThat(reconstruir.prepararVersion(2)).isTrue();
+		assertThat(reconstruir.prepararVersion(1)).as("volver atrás también reconstruye").isTrue();
+		assertThat(acciones).hasSize(3);
 	}
 
 	private static Sobre<EventoIntegracion> sobre(UsuarioId usuario, String contexto, long secuencia, long version, EventoIntegracion datos) {

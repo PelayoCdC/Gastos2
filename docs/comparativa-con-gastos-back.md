@@ -52,7 +52,11 @@ comportamiento marcados con ⚑ son **intencionados**: corrigen defectos y los d
 | ⚑ Fichero que no es Excel ni CSV | 400 genérico o 500 según el fallo de POI | 400 `FICHERO_ILEGIBLE` | [importación](dominio/importacion.md) |
 | ⚑ Fórmulas en el Excel | Se leía el texto de la fórmula y la fila daba error | Se lee el último valor calculado | [importación](dominio/importacion.md) |
 | ⚑ Contraseña / nombre | Solo "no vacía"; nombre opcional | Al menos 8 caracteres; nombre obligatorio | [identidad](dominio/identidad.md) |
-| ⚑ Evolución del saldo | Agrupaba por **nombre** de cuenta (fusionaba cuentas homónimas) | Agrupa por id | [consultas](dominio/consultas.md) |
+| ⚑ Evolución del saldo | Agrupaba por **nombre** de cuenta (fusionaba cuentas homónimas) y un saldo desconocido contaba como 0 | Agrupa por id e ignora los saldos desconocidos | [consultas](dominio/consultas.md) |
+| ⚑ Importes de los informes | Textos con dos decimales calculados con `double` | Números exactos (`BigDecimal`) | [consultas](dominio/consultas.md) |
+| ⚑ Composición mensual por categoría | Meses ordenados como texto ("10" antes que "9") | Orden cronológico | [consultas](dominio/consultas.md) |
+| ⚑ Recurrentes "activos" | Calculado con `LocalDate.now()` | `Clock` inyectado (probado con fechas fijas); periodicidad como enumerado | [consultas](dominio/consultas.md) |
+| Reconstruir los informes | Imposible: se calculaban sobre las tablas de escritura | Las proyecciones se rehacen desde Kafka subiendo una versión | [ADR 0010](adr/0010-consultas-cqrs-reconstruible-por-replay.md) |
 | ⚑ Ordenación de la rejilla | Sin desempate; un campo desconocido daba 500 | Desempate por `orden` e `id`; lista blanca de campos (400 `ORDEN_INVALIDO`) | [consultas](dominio/consultas.md) |
 | ⚑ Excel de transacciones | Fechas como texto, saldo desconocido como 0 | Fechas e importes reales; saldo desconocido vacío; añade fecha valor, nota y documento al final | [consultas](dominio/consultas.md) |
 | Leer justo después de guardar | Inmediato (una sola base de datos) | Consistencia eventual con `Gastos-Esperar` (espera hasta 3 s) | [ADR 0011](adr/0011-leer-lo-que-acabas-de-escribir.md) |

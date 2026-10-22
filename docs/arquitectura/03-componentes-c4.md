@@ -56,7 +56,7 @@ flowchart LR
 | movimientos | [movimientos](#movimientos) | F3–F4 ✅ |
 | clasificacion | [clasificacion](#clasificacion) | F5–F6 ✅ |
 | importacion | [importacion](#importacion) | F7 ✅ |
-| consultas | [consultas](#consultas) | F8 ✅ (informes en F9) |
+| consultas | [consultas](#consultas) | F8–F9 ✅ |
 
 ## identidad
 
@@ -249,40 +249,42 @@ intérprete se prueba sin ficheros.
 ```mermaid
 flowchart LR
     subgraph in [Entrada]
-        kafka["ConsumidorEventos (por lotes)<br/>movimientos.eventos · clasificacion.eventos"]
-        rest["TransaccionesController<br/>/transacciones, /{id}, /exportacion"]
+        kafka["ConsumidorEventos (por lotes, ConsumerSeekAware)<br/>movimientos.eventos · clasificacion.eventos"]
+        prep["PreparacionProyeccion<br/>(al arrancar, tras Flyway)"]
+        rest["TransaccionesController · InformesController<br/>/transacciones, /informes/*"]
         esp["InterceptorEsperaConsistencia<br/>(Gastos-Esperar → Gastos-Desfase)"]
+        salud["SaludProyeccion<br/>/actuator/health/proyeccion"]
     end
     subgraph app [aplicacion]
         pro["ProyectarEventos"]
+        rec["ReconstruirProyeccion"]
         con["ConsultarTransacciones"]
+        inf["ConsultarInformes"]
         ec["EsperarConsistencia"]
-        ppro(["Proyeccion"])
-        plec(["LecturaTransacciones"])
-        ppos(["PosicionesLectura · Pausa"])
+        puertos(["Proyeccion · EstadoProyeccion · LecturaTransacciones ·<br/>LecturaApuntes · PosicionesLectura · Pausa"])
     end
     subgraph dom [dominio]
         tr["transacciones: FiltroTransacciones,<br/>Ordenacion (lista blanca)"]
         cs["consistencia: SecuenciasEsperadas"]
+        im["informes: Apunte, Periodo, Seleccion, Informes,<br/>DetectorRecurrentes, AgregadorBizum"]
     end
     subgraph out [Salida]
-        pj["ProyeccionJdbc<br/>(esqueleto + UPDATE por versión, lápidas)"]
-        lj["LecturaTransaccionesJdbc"]
-        pl["PosicionesLecturaJdbc"]
+        jdbc["ProyeccionJdbc · EstadoProyeccionJdbc ·<br/>LecturaTransaccionesJdbc · LecturaApuntesJdbc · PosicionesLecturaJdbc"]
         xl["ExportadorXlsx (POI, streaming)"]
     end
     kafka --> pro
-    rest --> con
+    prep --> rec
+    rest --> con & inf
     rest --> xl
     esp --> ec
-    pro --> ppro & ppos
-    con --> tr & plec
-    ec --> cs & ppos
-    pj -. implementa .-> ppro
-    lj -. implementa .-> plec
-    pl -. implementa .-> ppos
+    con --> tr
+    inf --> im
+    ec --> cs
+    pro & rec & con & inf & ec --> puertos
+    jdbc -. implementa .-> puertos
 ```
 
 consultas no tiene agregados ni publica eventos: su dominio son las reglas de cómo se pide la
-información (filtros, orden, secuencias esperadas). La aplicación trabaja directamente con los
-contratos porque el contexto es conformista ([dominio/consultas.md](../dominio/consultas.md)).
+información (filtros, orden, secuencias esperadas) y los calculadores puros de los informes. La
+aplicación trabaja directamente con los contratos porque el contexto es conformista
+([dominio/consultas.md](../dominio/consultas.md)).

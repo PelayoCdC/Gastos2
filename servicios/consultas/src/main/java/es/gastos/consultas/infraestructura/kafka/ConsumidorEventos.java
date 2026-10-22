@@ -5,14 +5,17 @@ import es.gastos.consultas.aplicacion.proyeccion.ProyectarEventos;
 import es.gastos.contratos.EventoIntegracion;
 import es.gastos.contratos.Sobre;
 import es.gastos.contratos.Topics;
+import org.apache.kafka.common.TopicPartition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.listener.BatchListenerFailedException;
+import org.springframework.kafka.listener.ConsumerSeekAware;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -32,7 +35,9 @@ import java.util.Optional;
  * nuevo lea los topics desde el principio, que es como se reconstruye consultas (F9, docs/adr/0010).
  */
 @Component
-class ConsumidorEventos {
+class ConsumidorEventos implements ConsumerSeekAware {
+
+	static final String ID = "proyecciones";
 
 	private static final Logger LOG = LoggerFactory.getLogger(ConsumidorEventos.class);
 
@@ -40,12 +45,24 @@ class ConsumidorEventos {
 
 	private final ProyectarEventos proyectar;
 
-	ConsumidorEventos(LectorSobres lector, ProyectarEventos proyectar) {
+	private final PreparacionProyeccion preparacion;
+
+	ConsumidorEventos(LectorSobres lector, ProyectarEventos proyectar, PreparacionProyeccion preparacion) {
 		this.lector = lector;
 		this.proyectar = proyectar;
+		this.preparacion = preparacion;
 	}
 
-	@KafkaListener(topics = {Topics.MOVIMIENTOS, Topics.CLASIFICACION},
+	/** Tras vaciar las tablas para reconstruir, se relee todo desde el principio de cada partición. */
+	@Override
+	public void onPartitionsAssigned(Map<TopicPartition, Long> asignadas, ConsumerSeekCallback posicionar) {
+		if (this.preparacion.consumirRelectura()) {
+			LOG.warn("Releyendo {} particiones desde el principio para reconstruir la proyeccion", asignadas.size());
+			posicionar.seekToBeginning(asignadas.keySet());
+		}
+	}
+
+	@KafkaListener(id = ID, idIsGroup = false, topics = {Topics.MOVIMIENTOS, Topics.CLASIFICACION},
 			groupId = "consultas-v${gastos.consultas.proyeccion.version:1}", batch = "true")
 	void recibir(List<String> mensajes) {
 		List<Optional<Sobre<EventoIntegracion>>> sobres = new ArrayList<>(mensajes.size());

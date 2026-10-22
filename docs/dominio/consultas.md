@@ -1,8 +1,8 @@
 # Contexto: consultas (lado de lectura CQRS)
 
 **Tipo:** subdominio de soporte, conformista · **Servicio:** `servicios/consultas` (puerto 8085) ·
-**Estado:** proyecciones, rejilla, detalle, Excel y `Gastos-Esperar` implementados en F8; informes y
-reconstrucción en F9; exportación v1 en F10
+**Estado:** proyecciones, rejilla, detalle, Excel y `Gastos-Esperar` implementados en F8; informes,
+análisis y reconstrucción en F9; exportación v1 en F10
 
 ## Responsabilidad
 
@@ -57,9 +57,27 @@ Docker en el portátil): un extracto de 150 filas está en la rejilla 224 ms des
 mensaje a mensaje para aislar el culpable, que se reintenta y, si sigue fallando, va al DLT
 (`consultas.dlt`) sin bloquear la partición.
 
-**Grupo versionado.** El grupo de consumidores es `consultas-v<gastos.consultas.proyeccion.version>`
-(ahora `consultas-v1`), con `auto-offset-reset: earliest`. La reconstrucción al cambiar la versión
-llega en F9.
+### Reconstrucción
+
+Las proyecciones son desechables: se pueden tirar y rehacer releyendo los topics, que tienen retención
+infinita ([ADR 0010](../adr/0010-consultas-cqrs-reconstruible-por-replay.md)).
+
+- **Versión de la proyección.** `gastos.consultas.proyeccion.version` (en compose,
+  `GASTOS_CONSULTAS_PROYECCION_VERSION`) da nombre al grupo de consumidores (`consultas-v<version>`) y
+  se guarda en la tabla `proyeccion_estado`.
+- **Al arrancar** (`PreparacionProyeccion`, después de Flyway y antes de que empiecen los consumidores),
+  `ReconstruirProyeccion` compara la versión configurada con la guardada. Si son distintas, o no hay
+  ninguna guardada, vacía las tablas de proyección y las posiciones de lectura (con `DELETE` dentro de
+  una transacción: `TRUNCATE` confirmaría a medias).
+- **Releer desde el principio.** Tras vaciar, el consumidor se reposiciona al principio de cada
+  partición al recibirlas (`ConsumerSeekAware`). No basta con que el grupo sea nuevo: si alguien vuelve
+  a una versión anterior, ese grupo ya tiene sus posiciones al final del topic y no releería nada.
+- **Saber cuándo ha terminado.** `GET /actuator/health/proyeccion` muestra la versión, el grupo y el
+  **retraso** (eventos publicados que aún no se han proyectado). `scripts/reconstruir-consultas.sh`
+  sube la versión, recrea el contenedor y espera a que el retraso sea 0
+  ([operación](../proceso/operacion.md#reconstruir-consultas)).
+- Mientras se reconstruye, las consultas responden con lo que lleve proyectado y `Gastos-Esperar` espera
+  igual que siempre, porque las posiciones de lectura también se rehacen.
 
 ## Leer lo que acabas de escribir
 
@@ -91,10 +109,22 @@ Las reglas son las del back antiguo, que el usuario ya conoce (`FiltroTransaccio
   `concepto`, `cuenta` o `categoria`, siempre con desempate por `orden` (la fila del extracto) y por
   id. Un campo fuera de la lista da 400 `ORDEN_INVALIDO`.
 
-## Calculadores de dominio (puros, F9)
+## Calculadores de dominio (puros)
 
-Son portados del back antiguo con la misma semántica, pero con el `Clock` inyectado y orden cronológico
-garantizado.
+`dominio/informes`: `Informes`, `DetectorRecurrentes` y `AgregadorBizum`, sobre los `Apunte`s del
+usuario (`LecturaApuntes` los carga con dos consultas: transacciones y etiquetas). Son portados del back
+antiguo con la misma semántica y estas diferencias:
+
+- dinero `BigDecimal` exacto (antes `double` y textos con dos decimales);
+- "hoy" inyectado con el `Clock` (antes `LocalDate.now()`);
+- meses ordenados como números (el antiguo ordenaba "10" antes que "9" en la composición mensual);
+- saldos desconocidos fuera de la evolución del saldo (antes contaban como 0) y cuentas por id;
+- filtros por id; el grupo "Sin categoría" llega con `categoria: null`;
+- periodicidad como enumerado (`SEMANAL`, `QUINCENAL`, `MENSUAL`, `TRIMESTRAL`, `ANUAL`).
+
+Por qué en memoria y no en SQL: un usuario tiene unos pocos miles de movimientos, así que cargarlos
+cuesta milisegundos, y con funciones puras toda la semántica se prueba sin base de datos (los casos de
+`dominio.spec.ts` del móvil están portados en `InformesTest`).
 
 - **Resumen mensual:**
   - `gastos` = suma de `-importe` de los importes negativos.
@@ -139,8 +169,19 @@ Todas las consultas aceptan `Gastos-Esperar` y pueden responder `Gastos-Desfase:
 | `GET /transacciones` | `concepto`, `desde`, `hasta`, `importeMin`, `importeMax`, `cuentaId`, `documentoId`, `categoriaId`*, `sinCategoria`, `etiquetaId`*, `sinEtiqueta`, `orden`, `direccion` (`ASC`/`DESC`), `pagina`, `tamano` (≤ 500) | 200 `Pagina` de `{id, fechaContable, fechaValor, concepto, nota, importe, saldo, orden, cuenta{id,nombre}, documento{id,nombre}, categoria{id,nombre,color}, etiquetas[{id,nombre}]}` | 400 `FILTRO_INVALIDO`, `ORDEN_INVALIDO`, `PARAMETRO_INVALIDO`, `PAGINACION_INVALIDA`, `CABECERA_INVALIDA` |
 | `GET /transacciones/{id}` | — | 200 la misma fila | 404 (también si es de otro usuario o está borrada) |
 | `GET /transacciones/exportacion` | los filtros y el orden de la rejilla, sin paginar | 200 `.xlsx` (`Content-Disposition: attachment; filename="transacciones-<fecha>.xlsx"`) | los de la rejilla; 400 `EXPORTACION_DEMASIADO_GRANDE` por encima de 50 000 filas |
-| `GET /informes/...` (F9) | | | |
+| `GET /informes/resumen-mensual` | `desde`, `hasta`, `categoriaId`*, `etiquetaId`* | 200 `[{anio, mes, gastos, ingresos, balance}]` | 400 `FILTRO_INVALIDO` |
+| `GET /informes/evolucion-saldo` | `desde`, `hasta` | 200 `[{cuenta{id,nombre}, puntos[{fecha, saldo}]}]` | |
+| `GET /informes/gastos-por-categoria` | `desde`, `hasta` | 200 `[{categoria{id,nombre,color} \| null, total, numeroTransacciones}]`, de mayor a menor | |
+| `GET /informes/gastos-por-etiqueta` | `desde`, `hasta`, `categoriaId`* (categoría **de la etiqueta**) | 200 `[{etiqueta{id,nombre}, total, numeroTransacciones}]` | |
+| `GET /informes/gasto-diario` | `desde`, `hasta`, `categoriaId`*, `etiquetaId`* | 200 `[{fecha, gasto}]` | |
+| `GET /informes/gastos-mensuales-por-categoria` | `desde`, `hasta` | 200 `[{anio, mes, categoria \| null, total}]` | |
+| `GET /informes/top-conceptos` | `desde`, `hasta`, `categoriaId`*, `etiquetaId`*, `limite` (15; 1–100) | 200 `[{concepto, total, numero, media}]` | 400 `LIMITE_INVALIDO` |
+| `GET /informes/recurrentes` | `categoriaId`*, `etiquetaId`* (todo el histórico) | 200 `[{concepto, periodicidad, cadaDias, importeMedio, costeAnual, ultimaFecha, activo, veces}]` (30 como mucho) | |
+| `GET /informes/bizum` | `desde`, `hasta`, `categoriaId`*, `etiquetaId`* | 200 `[{contacto, enviado, recibido, neto, veces}]` (20 como mucho) | |
 | `GET /exportacion/v1` (F10) | | | |
+
+En los informes con `categoriaId` y `etiquetaId` a la vez, mandan las categorías (como en el antiguo).
+Los gastos se devuelven en positivo.
 
 \* Repetible (`categoriaId=a&categoriaId=b`) o separado por comas.
 

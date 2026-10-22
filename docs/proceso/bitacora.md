@@ -23,7 +23,7 @@ en los [ADR](../adr/README.md).
 | F6 | clasificacion B: motor, automática, propagación, masiva | ✅ Terminada |
 | F7 | importacion: formatos, lectura Excel/CSV, importar | ✅ Terminada |
 | F8 | consultas A: proyecciones, rejilla, xlsx, leer lo que acabas de escribir | ✅ Terminada |
-| F9 | consultas B: informes, análisis, reconstrucción | Pendiente |
+| F9 | consultas B: informes, análisis, reconstrucción | ✅ Terminada |
 | F10 | Respaldo v1 y migración de los datos reales | Pendiente |
 | F11 | Observabilidad, e2e y cierre de la documentación | Pendiente |
 
@@ -651,3 +651,62 @@ en los [ADR](../adr/README.md).
 - **Medidas** (todo en Docker en el portátil): importar 150 filas 176 ms, rejilla con `Gastos-Esperar`
   224 ms, clasificación automática visible en ~1 s; con 2000 filas, 2,5 s, 2,6 s y ~13,5 s. Lo último
   queda como riesgo aceptado ([riesgos](../arquitectura/07-riesgos-y-deuda.md)).
+
+## F9 · consultas B: informes, análisis y reconstrucción (2026-10-22)
+
+### Qué se hizo
+
+- **Informes y análisis** como calculadores puros en `consultas/dominio/informes`:
+  - `Apunte` (el movimiento con su cuenta y su clasificación), `Periodo` y `Seleccion` (categorías o, si
+    no, etiquetas);
+  - `Informes`: resumen mensual, evolución del saldo, gastos por categoría y por etiqueta, gasto diario,
+    composición mensual por categoría y top de conceptos;
+  - `DetectorRecurrentes` y `AgregadorBizum`, portados con la misma semántica.
+- **Aplicación:** `ConsultarInformes` (carga los apuntes con `LecturaApuntes` y aplica el calculador;
+  "hoy" sale del `Clock`) y `ReconstruirProyeccion` (vacía las tablas si cambia la versión).
+- **Infraestructura:**
+  - `InformesController` con las 9 rutas de `/informes`;
+  - `LecturaApuntesJdbc` (dos consultas: transacciones y etiquetas);
+  - `PreparacionProyeccion` (al arrancar, tras Flyway), el reposicionamiento del consumidor al principio
+    de los topics y `SaludProyeccion` (`/actuator/health/proyeccion` con el retraso);
+  - Flyway `V2__estado_proyeccion.sql`; `GASTOS_CONSULTAS_PROYECCION_VERSION` en compose y
+    `scripts/reconstruir-consultas.sh`.
+- **Documentación:** contexto de consultas (informes, reconstrucción y API), C4, escenario 4.10, notas
+  en el ADR 0010, operación (cómo reconstruir), comparativa, despliegue y ejemplos en
+  `http/consultas.http`.
+
+### Decisiones y desviaciones
+
+- **Todos los informes en memoria con funciones puras**, también los que el back antiguo hacía en
+  JPQL. Un usuario tiene unos miles de movimientos (cargarlos cuesta milisegundos) y así cada regla se
+  prueba sin base de datos, con `BigDecimal` exacto.
+- **Correcciones respecto al antiguo** (documentadas en la comparativa): los meses de la composición
+  mensual se ordenaban como texto, los saldos desconocidos contaban como 0 y los recurrentes
+  dependían de `LocalDate.now()`.
+- **Reconstruir no depende solo del grupo nuevo.** Volver a una versión anterior reutilizaría un grupo
+  con posiciones al final del topic; por eso, tras vaciar, el consumidor se reposiciona al principio.
+  Se aprovecha para la primera vez: un consultas de F8 (sin versión guardada) se reconstruye solo al
+  desplegar F9.
+
+### Verificación
+
+- `./mvnw verify` en verde para los 12 módulos. En consultas, lo nuevo:
+  - `InformesTest` (10): resumen mensual y prioridad de las categorías sobre las etiquetas; saldo por
+    cuenta (por id, sin saldos desconocidos); por categoría con el grupo sin categoría; por etiqueta
+    sumando en cada una y filtrando por la categoría de la etiqueta; gasto diario; meses en orden
+    numérico; top de conceptos por clave sin fechas; recurrentes y Bizum con los casos de
+    `dominio.spec.ts` del móvil, más "activo" con un `Clock` fijo y un intervalo sin periodicidad.
+  - `ConsultasAplicacionTest`: reconstruir solo si cambia la versión (también al volver atrás).
+  - `ConsultasIT`: informes sobre lo proyectado y **reconstrucción en caliente** sobre el mismo grupo
+    (parar el consumidor, vaciar con la versión 2, arrancarlo): los 9 informes salen idénticos y la
+    salud muestra el retraso.
+- **Despliegue sobre el consultas de F8:** sin versión guardada, se reconstruyó solo al arrancar F9 y
+  cuadra con las fuentes: 2177 transacciones con la misma suma (−92 087,32), 8 cuentas, 16 documentos
+  y 1812 transacciones con categoría.
+- **Smoke en compose a través del gateway:** el escenario de `BizumTest` del back antiguo con los
+  servicios reales (por la palabra y por la etiqueta, sin transferencias, 2 veces y 56 € recibidos,
+  periodo de julio), resumen mensual y salud de la proyección.
+- **Reconstrucción real con `scripts/reconstruir-consultas.sh`** (versión 1 → 2): 5066 eventos
+  releídos en 18 s contando el arranque del contenedor, y los 9 informes más la rejilla de dos usuarios
+  idénticos byte a byte antes y después (20 comparaciones); los totales siguen cuadrando con
+  movimientos y clasificacion.

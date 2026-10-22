@@ -14,7 +14,7 @@ código) en la fase en que se implementa.
 | [Crear y clasificar una transacción a mano (dos servicios, *read-through*)](#47-crear-y-clasificar-una-transacción-a-mano) | F6 | ✅ |
 | [Leer lo que acabas de escribir (`Gastos-Secuencia` / `Gastos-Esperar`)](#49-leer-lo-que-acabas-de-escribir) | F8 | ✅ |
 | [Borrar una categoría usada por etiquetas y transacciones](#45-borrar-una-categoría-usada) | F5 | ✅ |
-| Reconstruir consultas reproduciendo Kafka | F9 | pendiente |
+| [Reconstruir consultas reproduciendo Kafka](#410-reconstruir-consultas-reproduciendo-kafka) | F9 | ✅ |
 | Restaurar un respaldo v1 (migración desde el back antiguo) | F10 | pendiente |
 
 ## 4.1 Registro de usuario
@@ -310,3 +310,33 @@ Resultado medido en el smoke de F8, a través del gateway:
 | Borrar el documento (204 con `Gastos-Secuencia`) y pedir la rejilla esperando esa secuencia | Vacía |
 | `Gastos-Esperar` con una secuencia que no llegará | 200 con `Gastos-Desfase: true` a los 3,08 s |
 | Extracto de 150 filas / de 2000 filas | Rejilla completa en 224 ms / 2,6 s |
+
+## 4.10 Reconstruir consultas reproduciendo Kafka
+
+([ADR 0010](../adr/0010-consultas-cqrs-reconstruible-por-replay.md)) Se tira la proyección y se rehace
+desde el log, por ejemplo tras cambiar su esquema o para repararla.
+
+```mermaid
+sequenceDiagram
+    actor O as Operador
+    participant S as reconstruir-consultas.sh
+    participant Q as consultas
+    participant DB as proyecciones
+    participant K as Kafka (retención infinita)
+    O->>S: reconstruir (versión N+1)
+    S->>Q: recrear con GASTOS_CONSULTAS_PROYECCION_VERSION=N+1 (guardada en .env)
+    Q->>DB: Flyway; ¿proyeccion_estado = N+1? No
+    Q->>DB: vaciar proyecciones y posiciones + fijar N+1 (una transacción)
+    Q->>K: grupo consultas-vN+1 · al recibir las particiones, seekToBeginning
+    loop lotes de hasta 500 eventos
+        K-->>Q: eventos desde el principio
+        Q->>DB: proyectar (idempotente por versión) y avanzar posiciones
+    end
+    S->>Q: GET /actuator/health/proyeccion hasta retraso = 0
+    S-->>O: reconstruida en N s
+```
+
+Resultado medido en F9: `scripts/reconstruir-consultas.sh` de la versión 1 a la 2 releyó 5066 eventos
+(2213 de movimientos y 2853 de clasificacion) en 18 s contando el arranque del contenedor. Los 9 informes
+y la rejilla de dos usuarios salieron idénticos byte a byte, y los totales siguieron cuadrando con las
+fuentes.

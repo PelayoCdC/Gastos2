@@ -62,3 +62,15 @@ Opción 3: el servicio `consultas`.
   evento era antiguo y tampoco se aplican sus efectos de conjunto.
 - **El grupo ya es `consultas-v${gastos.consultas.proyeccion.version}`**; vaciar las tablas al cambiar
   la versión llega en F9.
+
+## Notas de implementación (F9, 2026-10-22)
+
+- **La versión vive en la base de datos** (`proyeccion_estado`) además de en la configuración. Al
+  arrancar, si no coinciden (o no hay ninguna), se vacían las tablas y se fija la nueva, en una
+  transacción, antes de que empiecen los consumidores.
+- **Reposicionar, no solo cambiar de grupo.** El grupo `consultas-v<N>` nuevo empezaría por
+  `earliest`, pero volver a una versión anterior reutilizaría un grupo con posiciones al final del
+  topic y no releería nada. Por eso, tras vaciar, el consumidor hace `seekToBeginning` al recibir sus
+  particiones. Lo prueba `ConsultasIT` reconstruyendo en caliente sobre el mismo grupo.
+- **Retraso observable** en `/actuator/health/proyeccion`, y `scripts/reconstruir-consultas.sh` para
+  hacerlo de principio a fin.

@@ -39,3 +39,7 @@ management:
     web:
       exposure:
         include: health,info
+  endpoint:
+    health:
+      # Muestra el retraso de la proyección (componente "proyeccion"), útil al reconstruir
+      show-details: always

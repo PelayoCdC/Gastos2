@@ -71,8 +71,8 @@ Ejemplos: [`http/importacion.http`](../../http/importacion.http).
 
 ### consultas (`/api/consultas`)
 
-Rejilla, detalle y exportación a Excel de las transacciones, con filtros por id y orden en lista
-blanca: tabla completa en [dominio/consultas.md](../dominio/consultas.md#api-a-través-del-gateway-apiconsultas).
+Rejilla, detalle y exportación a Excel de las transacciones (filtros por id y orden en lista blanca),
+e informes y análisis (`/informes/*`, con importes como números y gastos en positivo): tabla completa en [dominio/consultas.md](../dominio/consultas.md#api-a-través-del-gateway-apiconsultas).
 Ejemplos: [`http/consultas.http`](../../http/consultas.http).
 
 ### Errores propios del gateway

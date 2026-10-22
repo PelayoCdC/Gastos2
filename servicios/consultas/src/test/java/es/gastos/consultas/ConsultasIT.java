@@ -2,6 +2,7 @@ package es.gastos.consultas;
 
 import es.gastos.compartido.pruebas.contenedores.ContenedoresKafka;
 import es.gastos.compartido.pruebas.contenedores.ContenedoresMariaDb;
+import es.gastos.consultas.infraestructura.kafka.PreparacionProyeccion;
 import es.gastos.contratos.Topics;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -13,7 +14,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.context.ImportTestcontainers;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.kafka.config.KafkaListenerEndpointRegistry;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.listener.MessageListenerContainer;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import tools.jackson.databind.json.JsonMapper;
@@ -58,6 +61,12 @@ class ConsultasIT {
 
 	@Autowired
 	private JsonMapper json;
+
+	@Autowired
+	private KafkaListenerEndpointRegistry consumidores;
+
+	@Autowired
+	private PreparacionProyeccion preparacion;
 
 	private final UUID usuario = UUID.randomUUID();
 
@@ -232,6 +241,68 @@ class ConsultasIT {
 			assertThat(hoja.getRow(2).getCell(6)).as("sin saldo, celda vacía").isNull();
 			assertThat(hoja.getLastRowNum()).isEqualTo(2);
 		}
+	}
+
+	@Test
+	void losInformesSalenDeLoProyectadoYUnaReconstruccionLosDejaIguales() throws Exception {
+		this.extractoDeDosFilas();
+		UUID bizum = UUID.randomUUID();
+		UUID recibido = UUID.randomUUID();
+		UUID cena = UUID.randomUUID();
+		this.clasificacion("EtiquetaGuardada", bizum, 1, datos("etiquetaId", bizum, "nombre", "Bizum", "descripcion", null,
+				"ocurrencias", List.of("bizum"), "categoriaId", null, "prioridad", 2));
+		this.movimientos("TransaccionRegistrada", recibido, 1, registrada(recibido, null, "JESUS RUIZ", "50.00", "2026-08-01", 1));
+		long movimientos = this.movimientos("TransaccionRegistrada", cena, 1, registrada(cena, null, "BIZUM: Cena", "-15.00", "2026-08-02", 2));
+		long clasificacion = this.clasificacion("TransaccionClasificada", recibido, 1, datos("transaccionId", recibido, "categoriaId", null,
+				"etiquetaIds", List.of(bizum), "motivo", "AUTOMATICA"));
+		this.esperarPosicion("movimientos", movimientos);
+		this.esperarPosicion("clasificacion", clasificacion);
+
+		this.mvc.perform(como(get("/informes/resumen-mensual")))
+				.andExpect(jsonPath("$.length()").value(2))
+				.andExpect(jsonPath("$[0].mes").value(7))
+				.andExpect(jsonPath("$[0].gastos").value(30.0))
+				.andExpect(jsonPath("$[1].ingresos").value(50.0))
+				.andExpect(jsonPath("$[1].balance").value(35.0));
+		this.mvc.perform(como(get("/informes/gastos-por-categoria").param("desde", "2026-07-01").param("hasta", "2026-07-31")))
+				.andExpect(jsonPath("$[0].categoria").doesNotExist())
+				.andExpect(jsonPath("$[0].total").value(20.0))
+				.andExpect(jsonPath("$[1].categoria.nombre").value("CatCascada"));
+		this.mvc.perform(como(get("/informes/bizum")))
+				.andExpect(jsonPath("$.length()").value(2))
+				.andExpect(jsonPath("$[?(@.contacto == 'jesus ruiz')].recibido").value(50.0))
+				.andExpect(jsonPath("$[?(@.contacto == 'cena')].enviado").value(15.0));
+		this.mvc.perform(como(get("/informes/top-conceptos").param("limite", "0")))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.codigo").value("LIMITE_INVALIDO"));
+		String[] antes = this.informes();
+
+		// Reconstrucción en caliente: consumidor parado, tablas vacías con la versión 2 y vuelta a leer los topics
+		MessageListenerContainer consumidor = this.consumidores.getListenerContainer("proyecciones");
+		consumidor.stop();
+		this.preparacion.preparar(2);
+		this.mvc.perform(como(get("/informes/resumen-mensual"))).andExpect(jsonPath("$.length()").value(0));
+		consumidor.start();
+		this.esperarPosicion("movimientos", movimientos);
+		this.esperarPosicion("clasificacion", clasificacion);
+
+		assertThat(this.informes()).isEqualTo(antes);
+		this.mvc.perform(get("/actuator/health/proyeccion"))
+				.andExpect(jsonPath("$.status").value("UP"))
+				.andExpect(jsonPath("$.details.grupo").value("consultas-v1"))
+				.andExpect(jsonPath("$.details.retraso").isNumber());
+	}
+
+	/** Todos los informes del usuario como JSON, para comparar antes y después de reconstruir. */
+	private String[] informes() throws Exception {
+		List<String> rutas = List.of("resumen-mensual", "evolucion-saldo", "gastos-por-categoria", "gastos-por-etiqueta", "gasto-diario",
+				"gastos-mensuales-por-categoria", "top-conceptos", "recurrentes", "bizum");
+		String[] respuestas = new String[rutas.size()];
+		for (int i = 0; i < rutas.size(); i++) {
+			respuestas[i] = this.mvc.perform(como(get("/informes/" + rutas.get(i)))).andExpect(status().isOk())
+					.andReturn().getResponse().getContentAsString();
+		}
+		return respuestas;
 	}
 
 	/** Cuenta, documento y dos transacciones; la primera clasificada con categoría y etiqueta. Devuelve la última secuencia. */
