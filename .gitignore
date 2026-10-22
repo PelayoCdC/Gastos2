@@ -11,3 +11,7 @@ infra/claves/*.pem
 
 # Variables locales de compose
 .env
+
+# Salidas de los ejemplos de http/: un respaldo o un Excel reales llevan datos personales
+http/respaldo*.json
+http/*.xlsx

@@ -4,6 +4,7 @@ import es.gastos.compartido.mensajeria.TraductorEventos;
 import es.gastos.contratos.EventoIntegracion;
 import es.gastos.contratos.importacion.v1.FormatoBancoEliminado;
 import es.gastos.contratos.importacion.v1.FormatoBancoGuardado;
+import es.gastos.contratos.importacion.v1.FormatosRestaurados;
 import es.gastos.importacion.dominio.formato.MapeoColumnas;
 import es.gastos.kernel.dominio.EventoDominio;
 import org.springframework.stereotype.Component;
@@ -19,6 +20,7 @@ class TraductorEventosImportacion implements TraductorEventos {
 		EventoIntegracion traducido = switch (evento) {
 			case es.gastos.importacion.dominio.formato.FormatoBancoGuardado e -> guardado(e);
 			case es.gastos.importacion.dominio.formato.FormatoBancoEliminado e -> new FormatoBancoEliminado(e.formatoId().valor());
+			case es.gastos.importacion.dominio.respaldo.FormatosRestaurados e -> new FormatosRestaurados(e.formatos());
 			default -> null;
 		};
 		return Optional.ofNullable(traducido);

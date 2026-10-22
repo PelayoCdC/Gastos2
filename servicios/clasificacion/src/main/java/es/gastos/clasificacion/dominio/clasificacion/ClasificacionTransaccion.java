@@ -77,6 +77,23 @@ public final class ClasificacionTransaccion extends RaizAgregado<TransaccionId> 
 		return clasificacion;
 	}
 
+	/**
+	 * Copia de una transacción que vuelve de un respaldo (docs/adr/0020) con la clasificación que traía.
+	 * Lo asignado cuenta como MIGRACION, que se trata como manual (no se sabe quién lo decidió y en la
+	 * duda se conserva, docs/adr/0017). Se marca como ya clasificada automáticamente: las reglas no se
+	 * vuelven a aplicar encima de lo restaurado.
+	 */
+	public static ClasificacionTransaccion restaurar(TransaccionId id, UsuarioId propietario, UUID documentoId, String concepto,
+			CategoriaId categoria, List<EtiquetaId> etiquetas) {
+		ClasificacionTransaccion clasificacion = new ClasificacionTransaccion(id, propietario, documentoId, concepto, 0, 0);
+		Foto antes = clasificacion.foto();
+		clasificacion.autoClasificada = true;
+		clasificacion.fijarCategoria(categoria, OrigenAsignacion.MIGRACION);
+		etiquetas.forEach(etiqueta -> clasificacion.etiquetas.putIfAbsent(etiqueta, OrigenAsignacion.MIGRACION));
+		clasificacion.anunciarSiCambio(antes, MotivoClasificacion.MIGRACION);
+		return clasificacion;
+	}
+
 	public static ClasificacionTransaccion reconstituir(TransaccionId id, UsuarioId propietario, UUID documentoId, String concepto,
 			long versionOrigen, CategoriaId categoria, OrigenAsignacion origenCategoria, Map<EtiquetaId, OrigenAsignacion> etiquetas,
 			boolean autoClasificada, long version) {

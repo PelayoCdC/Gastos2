@@ -145,8 +145,11 @@ public class RelayOutbox implements SmartLifecycle {
 
 	private void limpiar() {
 		try {
-			int borrados = this.outbox.borrarPublicadosAntesDe(this.reloj.instant().minus(this.propiedades.retencionPublicados()));
-			if (borrados > 0) {
+			// En la misma transacción READ COMMITTED que el envío: el hueco que bloquearía es justo donde se
+			// insertan los eventos nuevos
+			Integer borrados = this.transaccion.execute(estado ->
+					this.outbox.borrarPublicadosAntesDe(this.reloj.instant().minus(this.propiedades.retencionPublicados())));
+			if (borrados != null && borrados > 0) {
 				LOG.info("Limpieza del outbox: {} eventos publicados borrados", borrados);
 			}
 		} catch (RuntimeException e) {

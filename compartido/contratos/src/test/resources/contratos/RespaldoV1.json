@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "generadoEn": "2026-10-22",
+  "cuentas": [
+    { "id": "0192f3a1-7c4e-7a10-8b2c-3d4e5f600101", "nombre": "Nomina", "banco": "Unicaja", "descripcion": null }
+  ],
+  "categorias": [
+    { "id": "0192f3a1-7c4e-7a10-8b2c-3d4e5f600201", "nombre": "Alimentacion", "color": "#22c55e", "descripcion": null,
+      "ocurrencias": ["lupa", "mercadona"] }
+  ],
+  "etiquetas": [
+    { "id": "0192f3a1-7c4e-7a10-8b2c-3d4e5f600301", "nombre": "Supermercado", "descripcion": null, "ocurrencias": ["lupa"],
+      "idCategoria": "0192f3a1-7c4e-7a10-8b2c-3d4e5f600201" }
+  ],
+  "configuracionesImportacion": [
+    { "id": "0192f3a1-7c4e-7a10-8b2c-3d4e5f600401", "nombre": "Unicaja xlsx", "filaInicio": 5, "columnaConcepto": 2,
+      "columnaImporte": 3, "columnaFechaContable": 0, "columnaFechaValor": 1, "columnaSaldo": 4, "formatoFecha": "dd/MM/yyyy" }
+  ],
+  "documentos": [
+    { "id": "0192f3a1-7c4e-7a10-8b2c-3d4e5f600501", "nombre": "Julio", "nombreArchivo": "julio.xlsx", "fecha": "2026-07-31",
+      "idCuenta": "0192f3a1-7c4e-7a10-8b2c-3d4e5f600101" }
+  ],
+  "transacciones": [
+    { "id": "0192f3a1-7c4e-7a10-8b2c-3d4e5f600601", "concepto": "COMPRA LUPA 01 07 2026", "nota": null, "importe": -12.34,
+      "saldo": 987.66, "orden": 3, "ordenDocumento": 1, "fechaContable": "2026-07-01", "fechaValor": "2026-06-30",
+      "idCuenta": "0192f3a1-7c4e-7a10-8b2c-3d4e5f600101", "idDocumento": "0192f3a1-7c4e-7a10-8b2c-3d4e5f600501",
+      "idCategoria": "0192f3a1-7c4e-7a10-8b2c-3d4e5f600201", "idsEtiquetas": ["0192f3a1-7c4e-7a10-8b2c-3d4e5f600301"] }
+  ]
+}

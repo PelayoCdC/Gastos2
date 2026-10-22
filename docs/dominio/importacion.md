@@ -134,9 +134,33 @@ Más las tablas comunes `outbox` e `inbox`.
 | `PUT /formatos/{id}` | igual que `POST` | 200 formato | los de `POST`, más 404 y 409 `MODIFICACION_CONCURRENTE` |
 | `DELETE /formatos/{id}` | — | 204 | 404 |
 | `POST /previsualizaciones` | multipart `archivo` | 200 `{nombreArchivo, totalFilas, filas: [[texto]]}` (20 filas como mucho) | 400 `FICHERO_VACIO`, `FICHERO_ILEGIBLE`; 413 |
+| `POST /respaldos` | JSON v1; `?modo=SIMULAR` (por defecto) o `SUSTITUIR` | 200 `{modo, cuentas, documentos, transacciones, categorias, etiquetas, clasificadas, formatos, anomalias[]}` | 400 `RESPALDO_NO_VALIDO`; 503 si movimientos o clasificacion no responden |
 | `POST /importaciones` | multipart `archivo` + `formatoId` + `cuentaId` + `nombre?` | 201 `{documentoId, nombreDocumento, nombreArchivo, importadas, errores: [{fila, mensaje}], duplicados: [{fila, fechaContable, concepto, importe}]}` | 400 (`FICHERO_*`, `PARAMETRO_INVALIDO`, o el `codigo` que dé movimientos); 404 formato o cuenta; 413; 503 `SERVICIO_NO_DISPONIBLE` si movimientos no responde |
 
 `nombre` es el nombre del documento; si no se indica, se usa el del fichero. Las filas con errores no se
 importan, pero no impiden importar las demás: el resultado las lista para que el usuario las revise.
 
 Ejemplos: [`http/importacion.http`](../../http/importacion.http).
+
+## Respaldos v1 (F10)
+
+`POST /respaldos?modo=SIMULAR|SUSTITUIR` (por defecto SIMULAR) con el JSON v1 del back antiguo, del móvil
+o de `GET /api/consultas/exportacion/v1` ([ADR 0020](../adr/0020-restauracion-v1-con-uuid-originales.md)).
+Responde `{modo, cuentas, documentos, transacciones, categorias, etiquetas, clasificadas, formatos,
+anomalias[]}`.
+
+- **`TraductorRespaldoV1`** (capa anticorrupción, puro): lee ids y fechas, que vienen como texto, y
+  descarta las transacciones sin id, fecha contable o importe **antes** de repartir el respaldo.
+- **`RestaurarRespaldo`** reparte: movimientos y clasificacion por su `PUT /internal/respaldos/v1`
+  (`RestauracionRemotaHttp`, con el JWT reenviado y reintentos ante fallos de red, que es seguro porque
+  sustituir es idempotente) y los formatos aquí mismo (`PlanFormatos`). Con SIMULAR, cada servicio
+  ensaya sin escribir.
+- **Orden y atomicidad:** movimientos → clasificacion → formatos. Cada paso es atómico en su servicio,
+  pero el conjunto no; si uno falla, se repite la restauración entera y queda bien porque cada paso
+  sustituye.
+- **Formatos** (`configuracionesImportacion` en el v1): los que no tienen concepto, importe o fecha se
+  descartan (el antiguo los admitía y fallaban al importar), un nombre repetido se queda con el primero y
+  un patrón de fecha no válido pasa a `dd/MM/yyyy`. Se publica `FormatosRestaurados` y después cada
+  `FormatoBancoGuardado`.
+- La respuesta lleva las `Gastos-Secuencia` de los tres servicios para leer el resultado en consultas
+  con `Gastos-Esperar`.

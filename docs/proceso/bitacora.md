@@ -24,7 +24,7 @@ en los [ADR](../adr/README.md).
 | F7 | importacion: formatos, lectura Excel/CSV, importar | ✅ Terminada |
 | F8 | consultas A: proyecciones, rejilla, xlsx, leer lo que acabas de escribir | ✅ Terminada |
 | F9 | consultas B: informes, análisis, reconstrucción | ✅ Terminada |
-| F10 | Respaldo v1 y migración de los datos reales | Pendiente |
+| F10 | Respaldo v1 y migración de los datos reales | En curso: código, pruebas y documentación hechos; falta la migración real (necesita al usuario) |
 | F11 | Observabilidad, e2e y cierre de la documentación | Pendiente |
 
 ---
@@ -710,3 +710,65 @@ en los [ADR](../adr/README.md).
   releídos en 18 s contando el arranque del contenedor, y los 9 informes más la rejilla de dos usuarios
   idénticos byte a byte antes y después (20 comparaciones); los totales siguen cuadrando con
   movimientos y clasificacion.
+
+## F10 · Respaldo v1 y migración (2026-10-22)
+
+### Qué se hizo
+
+- **Contratos:** `MovimientosRestaurados`, `ClasificacionRestaurada` y `FormatosRestaurados` (eventos de
+  conjunto) y el **formato v1** (`RespaldoV1`) en `compartido/contratos`, con una muestra con la forma
+  exacta del back antiguo y su test de contrato.
+- **movimientos y clasificacion:** `PUT /internal/respaldos/v1[?simular=true]`, cada uno con su
+  `PlanRestauracion` puro (fusiones por nombre, prioridad × 10, saldos a 0 del `float` antiguo, referencias
+  rotas) y su caso de uso, que sustituye lo del usuario en una transacción conservando los ids.
+- **importacion:** `POST /respaldos?modo=SIMULAR|SUSTITUIR` con `TraductorRespaldoV1` (capa
+  anticorrupción), `PlanFormatos` y `RestaurarRespaldo`, que reparte el respaldo y reenvía las
+  `Gastos-Secuencia` de los tres servicios.
+- **consultas:** consume también `importacion.eventos` (`formato_vista`), aplica los tres reinicios
+  (cada uno solo a su parte de las filas) y ofrece `GET /exportacion/v1`.
+- **`scripts/comparar-respaldos.mjs`** para comparar dos respaldos.
+- **Documentación:** notas en los ADR 0005 y 0020; restauración en los cuatro contextos; escenario 4.11;
+  procedimiento de copia de seguridad y migración en `operacion.md`; catálogo de eventos; API y `.http`.
+
+### Decisiones y desviaciones
+
+- **SIMULAR lo hace cada dueño** con su propio plan (`simular=true`) en vez de que importacion repita sus
+  reglas: la simulación no puede desviarse de lo que de verdad pasará.
+- **Las transacciones sin fecha o importe se descartan en importacion**, antes de repartir, para que
+  movimientos y clasificacion reciban el mismo conjunto.
+- **Un respaldo solo se restaura en la cuenta de la que salió** (o donde sus ids estén libres), y
+  **SUSTITUIR ensaya antes en todos**; ver el ADR 0020.
+- **El formato v1 pasa a `compartido/contratos`**: lo leen importacion y el móvil y lo escriben
+  consultas y el móvil.
+- **El comparador es un script de Node** y no de shell: comparar JSON sin `jq` era frágil.
+- `http/respaldo*.json` y `http/*.xlsx` quedan fuera de git: un respaldo real lleva datos personales.
+
+### Problemas encontrados
+
+- **Interbloqueo entre el relay del outbox y los casos de uso** (un `CatalogoIT` intermitente): el
+  `SELECT ... FOR UPDATE SKIP LOCKED` en REPEATABLE READ bloqueaba el hueco donde se insertan los eventos
+  nuevos. **Solución:** el relay (y la limpieza) en READ COMMITTED. Anotado en el ADR 0005 y en la guía.
+- **Restaurar en otra cuenta daba un 409 "nombre duplicado" engañoso** (lo vio el smoke): eran los ids
+  originales chocando con los de la cuenta de origen. **Solución:** la regla de propiedad y el error
+  `RESPALDO_DE_OTRA_CUENTA`, comprobados antes de borrar nada.
+- **`verify` con el stack levantado:** el Kafka de Testcontainers no arrancaba (memoria). Hay que parar
+  los servicios de compose antes, como ya decía la guía.
+- **El primer `Gastos-Esperar` tras recrear consultas devolvió `Gastos-Desfase`:** el consumidor tardó
+  unos 20 s en recibir sus particiones. Es el comportamiento previsto; queda como riesgo para F11.
+
+### Verificación
+
+- `./mvnw verify` en verde para todos los módulos. Lo nuevo: test de contrato del v1; `PlanRestauracionTest`
+  en movimientos (4) y clasificacion (2); `RespaldoTest` (3) y `RestaurarRespaldoTest` (2) en importacion;
+  `RespaldoIT` en movimientos (sustituir dos veces, eventos en orden, respaldo de otra cuenta rechazado
+  sin tocar nada) y clasificacion (sustituye el catálogo sembrado y la siembra no vuelve);
+  `ImportacionIT` (simular por defecto, sustituir con las secuencias de los tres);
+  `ConsultasIT` (restauración con la parte de clasificacion proyectada primero, y exportación v1).
+- **Smoke de ida y vuelta a través del gateway** (14 comprobaciones): exportar un usuario con extractos,
+  catálogo y formatos; su respaldo en otra cuenta da 409 sin tocar nada; en su propia cuenta, simular y
+  sustituir dos veces, y `comparar-respaldos.mjs` da **equivalentes** las dos veces (conteos, ids, sumas
+  por cuenta y mes, asignaciones y orden del catálogo); `Gastos-Esperar` tras sustituir, 77–95 ms; una
+  muestra con la forma exacta del back antiguo se restaura con su cuenta, documento, categoría, etiqueta
+  y formato. Las proyecciones siguen cuadrando con las fuentes (2183 transacciones, misma suma).
+- **Pendiente:** la migración de los datos reales (exportar del back antiguo con la sesión del usuario,
+  registrarse en Gastos2, simular, sustituir y comparar) y cargar el respaldo en la app móvil.

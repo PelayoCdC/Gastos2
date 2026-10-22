@@ -5,6 +5,7 @@ import es.gastos.importacion.dominio.formato.FormatoId;
 import es.gastos.importacion.dominio.formato.FormatoRepositorio;
 import es.gastos.kernel.dominio.UsuarioId;
 
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -41,5 +42,15 @@ class FormatosEnMemoria implements FormatoRepositorio {
 	@Override
 	public void eliminar(FormatoBanco formato) {
 		this.formatos.remove(formato.id());
+	}
+
+	@Override
+	public void eliminarDelUsuario(UsuarioId usuario) {
+		this.formatos.values().removeIf(f -> f.perteneceA(usuario));
+	}
+
+	@Override
+	public boolean algunoDeOtroUsuario(UsuarioId usuario, Collection<FormatoId> ids) {
+		return ids.stream().map(this.formatos::get).anyMatch(f -> f != null && !f.perteneceA(usuario));
 	}
 }

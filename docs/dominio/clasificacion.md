@@ -171,3 +171,25 @@ Ejemplos: [`http/clasificacion.http`](../../http/clasificacion.http).
   dan 503.
 - **No se reclasifica al corregir hechos.** Si el usuario corrige el concepto, la clasificación no
   cambia sola, igual que antes.
+
+## Restauración de respaldos (F10)
+
+`PUT /internal/respaldos/v1[?simular=true]` (lo llama importacion,
+[ADR 0020](../adr/0020-restauracion-v1-con-uuid-originales.md)). Recibe `{categorias[], etiquetas[],
+transacciones[{id, documentoId, concepto, categoriaId, etiquetaIds}]}` y responde
+`{categorias, etiquetas, clasificadas, anomalias[]}`.
+
+- **`PlanRestauracion`** (dominio, puro):
+  - **prioridad = posición × 10** en el orden del respaldo (el antiguo no tenía prioridad: su "primera
+    coincidencia" era el orden en que la base de datos devolvía las filas, que es el orden exportado);
+  - categorías o etiquetas con el mismo nombre normalizado se fusionan sumando sus ocurrencias, y lo que
+    las usaba pasa a la superviviente; colores u ocurrencias no válidos se quitan;
+  - se crea la copia de **todas** las transacciones (`ClasificacionTransaccion.restaurar`), con lo
+    asignado como origen MIGRACION (que cuenta como manual, [ADR 0017](../adr/0017-reetiquetar-respeta-lo-manual.md))
+    y marcadas como ya clasificadas automáticamente: las reglas nunca se aplican encima de lo restaurado.
+- **`RestaurarClasificacion`**: en una transacción olvida las clasificaciones y borra el catálogo del
+  usuario, **marca el catálogo como sembrado** (la siembra inicial no se aplica encima, aunque el
+  `UsuarioRegistrado` llegue después), publica `ClasificacionRestaurada` y después el alta de cada cosa.
+- El `MovimientosRestaurados` de movimientos se ignora: la copia de las transacciones la restaura esta
+  misma llamada, y las `TransaccionRegistrada` de origen MIGRACION no disparan la clasificación
+  automática.

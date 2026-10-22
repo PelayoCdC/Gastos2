@@ -36,7 +36,7 @@ class ProyeccionJdbc implements Proyeccion {
 	public void guardarCuenta(UsuarioId usuario, Cuenta cuenta, long version) {
 		this.esqueleto("cuenta_vista", cuenta.id(), usuario);
 		this.jdbc.sql("""
-						UPDATE cuenta_vista SET nombre = :nombre, banco = :banco, descripcion = :descripcion, version = :version
+						UPDATE cuenta_vista SET nombre = :nombre, banco = :banco, descripcion = :descripcion, eliminada = FALSE, version = :version
 						WHERE id = :id AND version < :version""")
 				.param("id", cuenta.id()).param("nombre", cuenta.nombre()).param("banco", cuenta.banco())
 				.param("descripcion", cuenta.descripcion()).param("version", version)
@@ -53,7 +53,7 @@ class ProyeccionJdbc implements Proyeccion {
 	public void registrarDocumento(UsuarioId usuario, Documento documento, long version) {
 		this.esqueleto("documento_vista", documento.id(), usuario);
 		this.jdbc.sql("""
-						UPDATE documento_vista SET cuenta_id = :cuenta, nombre = :nombre, nombre_archivo = :archivo, fecha = :fecha,
+						UPDATE documento_vista SET cuenta_id = :cuenta, nombre = :nombre, nombre_archivo = :archivo, fecha = :fecha, eliminado = FALSE,
 						       version = :version
 						WHERE id = :id AND version < :version""")
 				.param("id", documento.id()).param("cuenta", documento.cuentaId()).param("nombre", documento.nombre())
@@ -101,7 +101,7 @@ class ProyeccionJdbc implements Proyeccion {
 		parametros.put("ordenDocumento", registro.ordenDocumento());
 		parametros.put("origen", registro.origen());
 		this.jdbc.sql("""
-						UPDATE transaccion_vista SET registrada = TRUE, cuenta_id = :cuenta, documento_id = :documento,
+						UPDATE transaccion_vista SET registrada = TRUE, eliminada = FALSE, cuenta_id = :cuenta, documento_id = :documento,
 						       fecha_contable = :fechaContable, fecha_valor = :fechaValor, concepto = :concepto,
 						       concepto_normalizado = :conceptoNormalizado, clave_concepto = :clave, nota = :nota, importe = :importe,
 						       saldo = :saldo, orden = :orden, orden_documento = :ordenDocumento, origen = :origen,
@@ -156,7 +156,7 @@ class ProyeccionJdbc implements Proyeccion {
 	public void guardarCategoria(UsuarioId usuario, Categoria categoria, long version) {
 		this.esqueleto("categoria_vista", categoria.id(), usuario);
 		this.jdbc.sql("""
-						UPDATE categoria_vista SET nombre = :nombre, color = :color, descripcion = :descripcion, ocurrencias = :ocurrencias,
+						UPDATE categoria_vista SET nombre = :nombre, color = :color, descripcion = :descripcion, ocurrencias = :ocurrencias, eliminada = FALSE,
 						       prioridad = :prioridad, version = :version
 						WHERE id = :id AND version < :version""")
 				.param("id", categoria.id()).param("nombre", categoria.nombre()).param("color", categoria.color())
@@ -179,7 +179,7 @@ class ProyeccionJdbc implements Proyeccion {
 	public void guardarEtiqueta(UsuarioId usuario, Etiqueta etiqueta, long version) {
 		this.esqueleto("etiqueta_vista", etiqueta.id(), usuario);
 		this.jdbc.sql("""
-						UPDATE etiqueta_vista SET nombre = :nombre, descripcion = :descripcion, ocurrencias = :ocurrencias,
+						UPDATE etiqueta_vista SET nombre = :nombre, descripcion = :descripcion, ocurrencias = :ocurrencias, eliminada = FALSE,
 						       categoria_id = :categoria, prioridad = :prioridad, version = :version
 						WHERE id = :id AND version < :version""")
 				.param("id", etiqueta.id()).param("nombre", etiqueta.nombre()).param("descripcion", etiqueta.descripcion())
@@ -193,6 +193,56 @@ class ProyeccionJdbc implements Proyeccion {
 		if (this.lapida("etiqueta_vista", "eliminada", etiquetaId, usuario, version)) {
 			this.jdbc.sql("DELETE FROM transaccion_etiqueta_vista WHERE etiqueta_id = :etiqueta").param("etiqueta", etiquetaId).update();
 		}
+	}
+
+	@Override
+	public void guardarFormato(UsuarioId usuario, Formato formato, long version) {
+		this.esqueleto("formato_vista", formato.id(), usuario);
+		this.jdbc.sql("""
+						UPDATE formato_vista SET nombre = :nombre, fila_inicio = :fila, columna_concepto = :concepto, columna_importe = :importe,
+						       columna_fecha_contable = :fechaContable, columna_fecha_valor = :fechaValor, columna_saldo = :saldo,
+						       formato_fecha = :formatoFecha, eliminado = FALSE, version = :version
+						WHERE id = :id AND version < :version""")
+				.param("id", formato.id()).param("nombre", formato.nombre()).param("fila", formato.filaInicio())
+				.param("concepto", formato.columnaConcepto()).param("importe", formato.columnaImporte())
+				.param("fechaContable", formato.columnaFechaContable()).param("fechaValor", formato.columnaFechaValor())
+				.param("saldo", formato.columnaSaldo()).param("formatoFecha", formato.formatoFecha()).param("version", version)
+				.update();
+	}
+
+	@Override
+	public void eliminarFormato(UsuarioId usuario, UUID formatoId, long version) {
+		this.lapida("formato_vista", "eliminado", formatoId, usuario, version);
+	}
+
+	@Override
+	public void restaurarMovimientos(UsuarioId usuario) {
+		this.jdbc.sql("UPDATE transaccion_vista SET registrada = FALSE, eliminada = TRUE, version_movimientos = 0 WHERE usuario_id = :usuario")
+				.param("usuario", usuario.valor()).update();
+		this.jdbc.sql("UPDATE documento_vista SET eliminado = TRUE, version = 0 WHERE usuario_id = :usuario")
+				.param("usuario", usuario.valor()).update();
+		this.jdbc.sql("UPDATE cuenta_vista SET eliminada = TRUE, version = 0 WHERE usuario_id = :usuario")
+				.param("usuario", usuario.valor()).update();
+	}
+
+	@Override
+	public void restaurarClasificacion(UsuarioId usuario) {
+		this.jdbc.sql("""
+						DELETE te FROM transaccion_etiqueta_vista te JOIN transaccion_vista t ON t.id = te.transaccion_id
+						WHERE t.usuario_id = :usuario""")
+				.param("usuario", usuario.valor()).update();
+		this.jdbc.sql("UPDATE transaccion_vista SET categoria_id = NULL, version_clasificacion = 0 WHERE usuario_id = :usuario")
+				.param("usuario", usuario.valor()).update();
+		this.jdbc.sql("UPDATE etiqueta_vista SET eliminada = TRUE, version = 0 WHERE usuario_id = :usuario")
+				.param("usuario", usuario.valor()).update();
+		this.jdbc.sql("UPDATE categoria_vista SET eliminada = TRUE, version = 0 WHERE usuario_id = :usuario")
+				.param("usuario", usuario.valor()).update();
+	}
+
+	@Override
+	public void restaurarFormatos(UsuarioId usuario) {
+		this.jdbc.sql("UPDATE formato_vista SET eliminado = TRUE, version = 0 WHERE usuario_id = :usuario")
+				.param("usuario", usuario.valor()).update();
 	}
 
 	private void esqueleto(String tabla, UUID id, UsuarioId usuario) {

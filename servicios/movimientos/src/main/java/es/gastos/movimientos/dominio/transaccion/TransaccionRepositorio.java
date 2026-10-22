@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 
 /** Puerto de persistencia de transacciones, con las operaciones por conjuntos que piden los documentos. */
 public interface TransaccionRepositorio {
@@ -18,6 +19,12 @@ public interface TransaccionRepositorio {
 	Optional<Transaccion> buscar(TransaccionId id);
 
 	void eliminar(Transaccion transaccion);
+
+	/** Borra todas las transacciones del usuario (restaurar un respaldo). */
+	void eliminarDelUsuario(UsuarioId usuario);
+
+	/** Si alguno de esos ids ya es de otro usuario (un respaldo de otra cuenta no puede reutilizarlos). */
+	boolean algunoDeOtroUsuario(UsuarioId usuario, Collection<UUID> ids);
 
 	/** Número de transacciones (de cualquier origen) asociadas a la cuenta. */
 	long contarEnCuenta(CuentaId cuenta);

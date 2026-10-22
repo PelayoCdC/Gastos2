@@ -71,3 +71,9 @@ Authorization: Bearer {{token}}
 
 ### Estado de la proyección (versión, grupo y eventos pendientes); sin token, directo al servicio
 GET http://localhost:8085/actuator/health/proyeccion
+
+### Respaldo completo en formato v1 (copia de seguridad, o para cargarlo en la app móvil)
+GET {{consultas}}/exportacion/v1
+Authorization: Bearer {{token}}
+
+>> respaldo.json

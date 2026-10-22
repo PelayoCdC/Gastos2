@@ -40,4 +40,10 @@ public interface ClasificacionRepositorio {
 
 	/** Quita la etiqueta de todas las transacciones que la tenían; devuelve cuántas. */
 	int quitarEtiqueta(EtiquetaId etiqueta);
+
+	/** Olvida todas las transacciones del usuario con sus clasificaciones (restaurar un respaldo). */
+	void olvidarDelUsuario(UsuarioId usuario);
+
+	/** Si alguna de esas transacciones ya es de otro usuario. */
+	boolean algunaDeOtroUsuario(UsuarioId usuario, Collection<UUID> ids);
 }

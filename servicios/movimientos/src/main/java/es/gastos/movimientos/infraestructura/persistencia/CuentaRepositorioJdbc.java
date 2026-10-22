@@ -11,6 +11,7 @@ import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -106,5 +107,16 @@ class CuentaRepositorioJdbc implements CuentaRepositorio {
 	@Override
 	public void eliminar(Cuenta cuenta) {
 		this.jdbc.sql("DELETE FROM cuenta WHERE id = :id").param("id", cuenta.id().valor()).update();
+	}
+
+	@Override
+	public void eliminarDelUsuario(UsuarioId usuario) {
+		this.jdbc.sql("DELETE FROM cuenta WHERE usuario_id = :usuario").param("usuario", usuario.valor()).update();
+	}
+
+	@Override
+	public boolean algunoDeOtroUsuario(UsuarioId usuario, Collection<UUID> ids) {
+		return !ids.isEmpty() && this.jdbc.sql("SELECT COUNT(*) FROM cuenta WHERE id IN (:ids) AND usuario_id <> :usuario")
+				.param("ids", ids).param("usuario", usuario.valor()).query(Long.class).single() > 0;
 	}
 }

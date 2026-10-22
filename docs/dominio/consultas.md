@@ -178,7 +178,7 @@ Todas las consultas aceptan `Gastos-Esperar` y pueden responder `Gastos-Desfase:
 | `GET /informes/top-conceptos` | `desde`, `hasta`, `categoriaId`*, `etiquetaId`*, `limite` (15; 1–100) | 200 `[{concepto, total, numero, media}]` | 400 `LIMITE_INVALIDO` |
 | `GET /informes/recurrentes` | `categoriaId`*, `etiquetaId`* (todo el histórico) | 200 `[{concepto, periodicidad, cadaDias, importeMedio, costeAnual, ultimaFecha, activo, veces}]` (30 como mucho) | |
 | `GET /informes/bizum` | `desde`, `hasta`, `categoriaId`*, `etiquetaId`* | 200 `[{contacto, enviado, recibido, neto, veces}]` (20 como mucho) | |
-| `GET /exportacion/v1` (F10) | | | |
+| `GET /exportacion/v1` | — | 200 respaldo v1 completo (`Content-Disposition: attachment; filename="gastos-respaldo-<fecha>.json"`): cuentas, categorías y etiquetas en orden de prioridad, formatos, documentos y transacciones; un saldo desconocido sale como 0 porque el móvil espera un número | |
 
 En los informes con `categoriaId` y `etiquetaId` a la vez, mandan las categorías (como en el antiguo).
 Los gastos se devuelven en positivo.
@@ -191,3 +191,20 @@ fechas de Excel (antes, texto ISO), los importes números con dos decimales y un
 vacío (antes, 0).
 
 Ejemplos: [`http/consultas.http`](../../http/consultas.http).
+
+## Restauraciones (F10)
+
+Una restauración llega como tres eventos de conjunto (`MovimientosRestaurados`, `ClasificacionRestaurada`
+y `FormatosRestaurados`) seguidos del alta de cada cosa con su id original
+([ADR 0020](../adr/0020-restauracion-v1-con-uuid-originales.md)). Cada uno reinicia **solo su parte**:
+
+- `MovimientosRestaurados`: lápida en versión 0 para las cuentas, documentos y la parte de movimientos
+  de las transacciones del usuario (la clasificación de las filas se queda);
+- `ClasificacionRestaurada`: lápida en versión 0 para categorías y etiquetas, y fuera la categoría y
+  las etiquetas asignadas;
+- `FormatosRestaurados`: lápida en versión 0 para los formatos.
+
+Las altas restauradas llegan en versión 1, así que pasan la protección por versión y quitan la lápida
+(las altas son las únicas escrituras que quitan una lápida; como solo se aplican si su versión es mayor,
+un evento tardío normal no puede resucitar nada). Como cada reinicio toca solo lo suyo, da igual que la
+restauración de clasificacion se proyecte antes que la de movimientos, que es lo que prueba `ConsultasIT`.

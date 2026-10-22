@@ -11,6 +11,7 @@ import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -88,5 +89,16 @@ class DocumentoRepositorioJdbc implements DocumentoRepositorio {
 	@Override
 	public void eliminar(Documento documento) {
 		this.jdbc.sql("DELETE FROM documento WHERE id = :id").param("id", documento.id().valor()).update();
+	}
+
+	@Override
+	public void eliminarDelUsuario(UsuarioId usuario) {
+		this.jdbc.sql("DELETE FROM documento WHERE usuario_id = :usuario").param("usuario", usuario.valor()).update();
+	}
+
+	@Override
+	public boolean algunoDeOtroUsuario(UsuarioId usuario, Collection<UUID> ids) {
+		return !ids.isEmpty() && this.jdbc.sql("SELECT COUNT(*) FROM documento WHERE id IN (:ids) AND usuario_id <> :usuario")
+				.param("ids", ids).param("usuario", usuario.valor()).query(Long.class).single() > 0;
 	}
 }

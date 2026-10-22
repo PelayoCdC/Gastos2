@@ -62,7 +62,7 @@ class ConsumidorEventos implements ConsumerSeekAware {
 		}
 	}
 
-	@KafkaListener(id = ID, idIsGroup = false, topics = {Topics.MOVIMIENTOS, Topics.CLASIFICACION},
+	@KafkaListener(id = ID, idIsGroup = false, topics = {Topics.MOVIMIENTOS, Topics.CLASIFICACION, Topics.IMPORTACION},
 			groupId = "consultas-v${gastos.consultas.proyeccion.version:1}", batch = "true")
 	void recibir(List<String> mensajes) {
 		List<Optional<Sobre<EventoIntegracion>>> sobres = new ArrayList<>(mensajes.size());

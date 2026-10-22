@@ -31,6 +31,7 @@ gastos:
     jwk-set-uri: http://localhost:8081/.well-known/jwks.json
   servicios:
     movimientos: http://localhost:8082
+    clasificacion: http://localhost:8083
 
 management:
   endpoints:

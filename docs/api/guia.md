@@ -65,7 +65,8 @@ Ejemplos: [`http/clasificacion.http`](../../http/clasificacion.http).
 
 ### importacion (`/api/importacion`)
 
-Formatos de banco, previsualización e importación de extractos (multipart, hasta 10 MB): tabla completa
+Formatos de banco, previsualización e importación de extractos (multipart, hasta 10 MB) y restauración de
+respaldos v1 (`POST /respaldos`, simulando por defecto): tabla completa
 en [dominio/importacion.md](../dominio/importacion.md#api-a-través-del-gateway-apiimportacion).
 Ejemplos: [`http/importacion.http`](../../http/importacion.http).
 

@@ -15,7 +15,7 @@ código) en la fase en que se implementa.
 | [Leer lo que acabas de escribir (`Gastos-Secuencia` / `Gastos-Esperar`)](#49-leer-lo-que-acabas-de-escribir) | F8 | ✅ |
 | [Borrar una categoría usada por etiquetas y transacciones](#45-borrar-una-categoría-usada) | F5 | ✅ |
 | [Reconstruir consultas reproduciendo Kafka](#410-reconstruir-consultas-reproduciendo-kafka) | F9 | ✅ |
-| Restaurar un respaldo v1 (migración desde el back antiguo) | F10 | pendiente |
+| [Restaurar un respaldo v1 (migración desde el back antiguo)](#411-restaurar-un-respaldo-v1) | F10 | ✅ |
 
 ## 4.1 Registro de usuario
 
@@ -340,3 +340,32 @@ Resultado medido en F9: `scripts/reconstruir-consultas.sh` de la versión 1 a la
 (2213 de movimientos y 2853 de clasificacion) en 18 s contando el arranque del contenedor. Los 9 informes
 y la rejilla de dos usuarios salieron idénticos byte a byte, y los totales siguieron cuadrando con las
 fuentes.
+
+## 4.11 Restaurar un respaldo v1
+
+([ADR 0020](../adr/0020-restauracion-v1-con-uuid-originales.md)) El usuario sube el JSON exportado por el
+back antiguo, por el móvil o por `GET /api/consultas/exportacion/v1`.
+
+```mermaid
+sequenceDiagram
+    actor U as Front
+    participant I as importacion
+    participant M as movimientos
+    participant C as clasificacion
+    participant K as Kafka
+    participant Q as consultas
+    U->>I: POST /api/importacion/respaldos?modo=SUSTITUIR (JSON v1)
+    I->>I: TraductorRespaldoV1: ids y fechas; fuera las transacciones sin fecha o importe
+    I->>M: PUT /internal/respaldos/v1 (cuentas, documentos, transacciones) + JWT
+    M->>M: PlanRestauracion · borrar lo del usuario · MovimientosRestaurados + altas (ids originales)
+    M-->>I: {cuentas, documentos, transacciones, anomalias} · Gastos-Secuencia
+    I->>C: PUT /internal/respaldos/v1 (catálogo, asignaciones) + JWT
+    C->>C: PlanRestauracion · borrar catálogo y clasificaciones · marcar sembrado · ClasificacionRestaurada + altas
+    C-->>I: {categorias, etiquetas, clasificadas, anomalias} · Gastos-Secuencia
+    I->>I: PlanFormatos · FormatosRestaurados + formatos
+    I-->>U: informe + Gastos-Secuencia de los tres
+    K--)Q: cada reinicio limpia solo su parte; las altas (versión 1) reviven las filas
+```
+
+Con `modo=SIMULAR` (el valor por defecto) se hacen las mismas llamadas con `simular=true`: cada servicio
+construye su plan y devuelve conteos y anomalías sin escribir nada.

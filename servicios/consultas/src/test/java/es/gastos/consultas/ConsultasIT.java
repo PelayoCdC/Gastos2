@@ -293,6 +293,55 @@ class ConsultasIT {
 				.andExpect(jsonPath("$.details.retraso").isNumber());
 	}
 
+	@Test
+	void unaRestauracionSustituyeLoProyectadoAunqueLleguePrimeroLaDeClasificacionYSeExportaEnV1() throws Exception {
+		this.extractoDeDosFilas();
+		UUID formato = UUID.randomUUID();
+		long secuencia = this.importacion("FormatoBancoGuardado", formato, 1, datos("formatoId", formato, "nombre", "Unicaja", "filaInicio", 2,
+				"columnaConcepto", 1, "columnaImporte", 2, "columnaFechaContable", 0, "columnaFechaValor", null, "columnaSaldo", null,
+				"formatoFecha", "dd/MM/yyyy"));
+		this.esperarPosicion("importacion", secuencia);
+		this.mvc.perform(como(get("/exportacion/v1")))
+				.andExpect(header().string("Content-Disposition", containsString("gastos-respaldo-")))
+				.andExpect(jsonPath("$.version").value(1))
+				.andExpect(jsonPath("$.configuracionesImportacion[0].nombre").value("Unicaja"))
+				.andExpect(jsonPath("$.transacciones.length()").value(2))
+				.andExpect(jsonPath("$.transacciones[1].saldo").value(0.0))
+				.andExpect(jsonPath("$.transacciones[0].idsEtiquetas[0]").value(this.etiqueta.toString()));
+
+		// Restauración: la parte de clasificacion se proyecta antes que la de movimientos (topics sin orden entre sí)
+		this.clasificacion("ClasificacionRestaurada", this.usuario, 0, datos("categorias", 1, "etiquetas", 0, "clasificadas", 1));
+		this.clasificacion("CategoriaGuardada", this.categoria, 1, datos("categoriaId", this.categoria, "nombre", "Restaurada", "color", null,
+				"descripcion", null, "ocurrencias", List.of(), "prioridad", 10));
+		secuencia = this.clasificacion("TransaccionClasificada", this.compra, 1, datos("transaccionId", this.compra, "categoriaId",
+				this.categoria, "etiquetaIds", List.of(), "motivo", "MIGRACION"));
+		this.esperarPosicion("clasificacion", secuencia);
+		this.movimientos("MovimientosRestaurados", this.usuario, 0, datos("cuentas", 1, "documentos", 0, "transacciones", 1));
+		this.movimientos("CuentaGuardada", this.cuenta, 1, datos("cuentaId", this.cuenta, "nombre", "Cuenta IT", "banco", null,
+				"descripcion", null));
+		Map<String, Object> compra = registrada(this.compra, null, "ZZZCASCADA COMPRA", "-10.00", "2026-07-01", 2);
+		compra.put("origen", "MIGRACION");
+		secuencia = this.movimientos("TransaccionRegistrada", this.compra, 1, compra);
+		this.esperarPosicion("movimientos", secuencia);
+		secuencia = this.importacion("FormatosRestaurados", this.usuario, 0, datos("formatos", 0));
+		this.esperarPosicion("importacion", secuencia);
+
+		this.mvc.perform(como(get("/transacciones")))
+				.andExpect(jsonPath("$.totalElementos").value(1))
+				.andExpect(jsonPath("$.contenido[0].id").value(this.compra.toString()))
+				.andExpect(jsonPath("$.contenido[0].categoria.nombre").value("Restaurada"))
+				.andExpect(jsonPath("$.contenido[0].etiquetas").isEmpty())
+				.andExpect(jsonPath("$.contenido[0].documento").doesNotExist());
+		this.mvc.perform(como(get("/exportacion/v1")))
+				.andExpect(jsonPath("$.cuentas.length()").value(1))
+				.andExpect(jsonPath("$.categorias[0].nombre").value("Restaurada"))
+				.andExpect(jsonPath("$.etiquetas").isEmpty())
+				.andExpect(jsonPath("$.documentos").isEmpty())
+				.andExpect(jsonPath("$.configuracionesImportacion").isEmpty())
+				.andExpect(jsonPath("$.transacciones.length()").value(1))
+				.andExpect(jsonPath("$.transacciones[0].idCategoria").value(this.categoria.toString()));
+	}
+
 	/** Todos los informes del usuario como JSON, para comparar antes y después de reconstruir. */
 	private String[] informes() throws Exception {
 		List<String> rutas = List.of("resumen-mensual", "evolucion-saldo", "gastos-por-categoria", "gastos-por-etiqueta", "gasto-diario",
@@ -343,6 +392,10 @@ class ConsultasIT {
 
 	private long clasificacion(String tipo, UUID agregado, long version, Map<String, Object> datos) {
 		return this.publicar(Topics.CLASIFICACION, "clasificacion", tipo, agregado, version, datos);
+	}
+
+	private long importacion(String tipo, UUID agregado, long version, Map<String, Object> datos) {
+		return this.publicar(Topics.IMPORTACION, "importacion", tipo, agregado, version, datos);
 	}
 
 	private long publicar(String topic, String contexto, String tipo, UUID agregado, long version, Map<String, Object> datos) {

@@ -117,6 +117,17 @@ class TransaccionRepositorioJdbc implements TransaccionRepositorio {
 	}
 
 	@Override
+	public void eliminarDelUsuario(UsuarioId usuario) {
+		this.jdbc.sql("DELETE FROM transaccion WHERE usuario_id = :usuario").param("usuario", usuario.valor()).update();
+	}
+
+	@Override
+	public boolean algunoDeOtroUsuario(UsuarioId usuario, Collection<UUID> ids) {
+		return !ids.isEmpty() && this.jdbc.sql("SELECT COUNT(*) FROM transaccion WHERE id IN (:ids) AND usuario_id <> :usuario")
+				.param("ids", ids).param("usuario", usuario.valor()).query(Long.class).single() > 0;
+	}
+
+	@Override
 	public long contarEnCuenta(CuentaId cuenta) {
 		return this.jdbc.sql("SELECT COUNT(*) FROM transaccion WHERE cuenta_id = :cuenta")
 				.param("cuenta", cuenta.valor()).query(Long.class).single();

@@ -6,6 +6,7 @@ import es.gastos.contratos.clasificacion.v1.TransaccionClasificada;
 import es.gastos.compartido.mensajeria.TraductorEventos;
 import es.gastos.contratos.EventoIntegracion;
 import es.gastos.contratos.clasificacion.v1.CategoriaEliminada;
+import es.gastos.contratos.clasificacion.v1.ClasificacionRestaurada;
 import es.gastos.contratos.clasificacion.v1.CategoriaGuardada;
 import es.gastos.contratos.clasificacion.v1.EtiquetaEliminada;
 import es.gastos.contratos.clasificacion.v1.EtiquetaGuardada;
@@ -32,6 +33,8 @@ class TraductorEventosClasificacion implements TraductorEventos {
 			case es.gastos.clasificacion.dominio.clasificacion.TransaccionClasificada e -> new TransaccionClasificada(
 					e.transaccionId().valor(), categoria(e.categoria()), e.etiquetas().stream().map(EtiquetaId::valor).toList(),
 					e.motivo().name());
+			case es.gastos.clasificacion.dominio.respaldo.ClasificacionRestaurada e ->
+					new ClasificacionRestaurada(e.categorias(), e.etiquetas(), e.clasificadas());
 			default -> null;
 		};
 		return Optional.ofNullable(traducido);

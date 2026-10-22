@@ -14,6 +14,7 @@ import org.springframework.stereotype.Repository;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -109,6 +110,18 @@ class FormatoRepositorioJdbc implements FormatoRepositorio {
 	@Override
 	public void eliminar(FormatoBanco formato) {
 		this.jdbc.sql("DELETE FROM formato_banco WHERE id = :id").param("id", formato.id().valor()).update();
+	}
+
+	@Override
+	public void eliminarDelUsuario(UsuarioId usuario) {
+		this.jdbc.sql("DELETE FROM formato_banco WHERE usuario_id = :usuario").param("usuario", usuario.valor()).update();
+	}
+
+	@Override
+	public boolean algunoDeOtroUsuario(UsuarioId usuario, Collection<FormatoId> ids) {
+		return !ids.isEmpty() && this.jdbc.sql("SELECT COUNT(*) FROM formato_banco WHERE id IN (:ids) AND usuario_id <> :usuario")
+				.param("ids", ids.stream().map(FormatoId::valor).toList()).param("usuario", usuario.valor())
+				.query(Long.class).single() > 0;
 	}
 
 	private static FormatoBanco formato(ResultSet rs, int fila) throws SQLException {

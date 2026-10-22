@@ -83,6 +83,7 @@ documento o la transacción. Los importes viajan como número JSON con 2 decimal
 | `TransaccionRegistrada` | Alta manual, fila importada o restauración | `transaccionId`, `origen` (IMPORTACION, MANUAL o MIGRACION), `cuentaId`, `documentoId`, `fechaContable`, `fechaValor`, `concepto`, `nota`, `importe`, `saldo`, `orden`, `ordenDocumento` | clasificacion, consultas |
 | `TransaccionCorregida` | Editar los hechos de una transacción | `transaccionId`, `cuentaId`, `fechaContable`, `fechaValor`, `concepto`, `nota`, `importe` | clasificacion, consultas |
 | `TransaccionEliminada` | Borrar una transacción concreta | `transaccionId`, `documentoId` | clasificacion, consultas |
+| `MovimientosRestaurados` | Restaurar un respaldo (F10): sustituye **todos** los movimientos del usuario. Evento de conjunto que va **antes** que los `CuentaGuardada`, `DocumentoRegistrado` y `TransaccionRegistrada` (origen MIGRACION) de lo restaurado, que conservan sus ids. `agregadoId` es el usuario | `cuentas`, `documentos`, `transacciones` (cuántos se restauran) | consultas (clasificacion lo ignora) |
 
 **Qué hacen los consumidores:**
 - **Orden:** el de cada usuario está garantizado dentro del topic. Por eso un `DocumentoEliminado` nunca
@@ -101,8 +102,8 @@ Productor: clasificacion. La clave es el usuario propietario.
 | `CategoriaEliminada` | Borrar una categoría. Evento de conjunto: las transacciones que la tenían quedan sin categoría. Las etiquetas que la aplicaban en cascada llegan **antes** como `EtiquetaGuardada` sin categoría | `categoriaId` | consultas |
 | `EtiquetaGuardada` | Crear, modificar o reordenar una etiqueta, quitarle la categoría o sembrar el catálogo | `etiquetaId`, `nombre`, `descripcion`, `ocurrencias[]`, `categoriaId` (cascada, o nulo), `prioridad` | consultas |
 | `EtiquetaEliminada` | Borrar una etiqueta. Evento de conjunto: se quita de todas las transacciones | `etiquetaId` | consultas |
-
 | `TransaccionClasificada` | Cambia la categoría o las etiquetas de una transacción: clasificación automática al importar, asignación manual, propagación, aplicación masiva, reetiquetado o restauración | `transaccionId`, `categoriaId` (o nulo), `etiquetaIds[]` (en orden), `motivo` (MANUAL, AUTOMATICA, PROPAGACION, MASIVA, REINICIO o MIGRACION) | consultas |
+| `ClasificacionRestaurada` | Restaurar un respaldo (F10): sustituye el catálogo y las clasificaciones del usuario. Evento de conjunto que va **antes** que los `CategoriaGuardada`, `EtiquetaGuardada` y `TransaccionClasificada` (motivo MIGRACION) restaurados. `agregadoId` es el usuario | `categorias`, `etiquetas`, `clasificadas` | consultas |
 
 Las ocurrencias viajan tal cual, **con sus espacios** (`"bar "`): son parte del significado de la regla.
 
@@ -119,6 +120,7 @@ Productor: importacion. La clave es el usuario propietario.
 |---|---|---|---|
 | `FormatoBancoGuardado` | Crear o modificar un formato de banco | `formatoId`, `nombre`, `filaInicio` (desde 1), `columnaConcepto`, `columnaImporte`, `columnaFechaContable` (desde 0), `columnaFechaValor?`, `columnaSaldo?`, `formatoFecha` | consultas (exportación v1) |
 | `FormatoBancoEliminado` | Borrar un formato | `formatoId` | consultas |
+| `FormatosRestaurados` | Restaurar un respaldo (F10): sustituye los formatos del usuario. Va **antes** que los `FormatoBancoGuardado` restaurados. `agregadoId` es el usuario | `formatos` | consultas |
 
 Importar un extracto **no** emite eventos en importacion. El resultado lo registra movimientos, que
 publica `DocumentoRegistrado` y las `TransaccionRegistrada`.

@@ -135,6 +135,18 @@ class ClasificacionRepositorioJdbc implements ClasificacionRepositorio {
 				.update();
 	}
 
+	/** Las etiquetas asignadas se van en cascada. */
+	@Override
+	public void olvidarDelUsuario(UsuarioId usuario) {
+		this.jdbc.sql("DELETE FROM clasificacion_transaccion WHERE usuario_id = :usuario").param("usuario", usuario.valor()).update();
+	}
+
+	@Override
+	public boolean algunaDeOtroUsuario(UsuarioId usuario, Collection<UUID> ids) {
+		return !ids.isEmpty() && this.jdbc.sql("SELECT COUNT(*) FROM clasificacion_transaccion WHERE id IN (:ids) AND usuario_id <> :usuario")
+				.param("ids", ids).param("usuario", usuario.valor()).query(Long.class).single() > 0;
+	}
+
 	@Override
 	public int quitarEtiqueta(EtiquetaId etiqueta) {
 		this.jdbc.sql("""

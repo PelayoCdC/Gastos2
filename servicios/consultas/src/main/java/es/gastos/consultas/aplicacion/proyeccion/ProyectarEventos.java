@@ -5,15 +5,20 @@ import es.gastos.contratos.EventoIntegracion;
 import es.gastos.contratos.Sobre;
 import es.gastos.contratos.clasificacion.v1.CategoriaEliminada;
 import es.gastos.contratos.clasificacion.v1.CategoriaGuardada;
+import es.gastos.contratos.clasificacion.v1.ClasificacionRestaurada;
 import es.gastos.contratos.clasificacion.v1.EtiquetaEliminada;
 import es.gastos.contratos.clasificacion.v1.EtiquetaGuardada;
 import es.gastos.contratos.clasificacion.v1.TransaccionClasificada;
+import es.gastos.contratos.importacion.v1.FormatoBancoEliminado;
+import es.gastos.contratos.importacion.v1.FormatoBancoGuardado;
+import es.gastos.contratos.importacion.v1.FormatosRestaurados;
 import es.gastos.contratos.movimientos.v1.CuentaEliminada;
 import es.gastos.contratos.movimientos.v1.CuentaGuardada;
 import es.gastos.contratos.movimientos.v1.DocumentoEliminado;
 import es.gastos.contratos.movimientos.v1.DocumentoReasignado;
 import es.gastos.contratos.movimientos.v1.DocumentoRegistrado;
 import es.gastos.contratos.movimientos.v1.DocumentoRenombrado;
+import es.gastos.contratos.movimientos.v1.MovimientosRestaurados;
 import es.gastos.contratos.movimientos.v1.TransaccionCorregida;
 import es.gastos.contratos.movimientos.v1.TransaccionEliminada;
 import es.gastos.contratos.movimientos.v1.TransaccionRegistrada;
@@ -94,6 +99,13 @@ public class ProyectarEventos {
 			case EtiquetaGuardada e -> this.proyeccion.guardarEtiqueta(usuario, new Proyeccion.Etiqueta(e.etiquetaId(), e.nombre(),
 					e.descripcion(), lista(e.ocurrencias()), e.categoriaId(), e.prioridad()), version);
 			case EtiquetaEliminada e -> this.proyeccion.eliminarEtiqueta(usuario, e.etiquetaId(), version);
+			case FormatoBancoGuardado e -> this.proyeccion.guardarFormato(usuario, new Proyeccion.Formato(e.formatoId(), e.nombre(),
+					e.filaInicio(), e.columnaConcepto(), e.columnaImporte(), e.columnaFechaContable(), e.columnaFechaValor(), e.columnaSaldo(),
+					e.formatoFecha()), version);
+			case FormatoBancoEliminado e -> this.proyeccion.eliminarFormato(usuario, e.formatoId(), version);
+			case MovimientosRestaurados e -> this.proyeccion.restaurarMovimientos(usuario);
+			case ClasificacionRestaurada e -> this.proyeccion.restaurarClasificacion(usuario);
+			case FormatosRestaurados e -> this.proyeccion.restaurarFormatos(usuario);
 			default -> {
 				// Eventos que consultas no proyecta (aún): se cuentan para la posición y nada más
 			}

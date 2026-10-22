@@ -107,4 +107,8 @@ servicios/<svc>/src/main/resources/db/migration/   Flyway V1__..., V2__...
   HTTP real. Y debe llevar `Content-Length`: si va *chunked*, Tomcat responde 413 y cierra la conexión
   con cuerpo pendiente, y el cliente ve un *reset* en vez de la respuesta (ver `ImportacionIT`). Los
   navegadores y `curl -F` envían `Content-Length`.
+- **Bloqueos de hueco en MariaDB.** En REPEATABLE READ (el valor por defecto) un `SELECT ... FOR UPDATE`
+  o un `DELETE`/`UPDATE` por rango bloquean también los huecos del índice, y eso choca con los `INSERT`
+  concurrentes en esos huecos. Para procesos de fondo que recorren tablas donde se insertan cosas (como el
+  relay del outbox) usa READ COMMITTED (`TransactionTemplate.setIsolationLevel`).
 - Los commits se hacen por fase o por unidad coherente, con el mensaje en español.

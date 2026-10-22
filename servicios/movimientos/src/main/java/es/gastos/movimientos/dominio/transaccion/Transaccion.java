@@ -67,6 +67,20 @@ public final class Transaccion extends RaizAgregado<TransaccionId> {
 		return transaccion;
 	}
 
+	/**
+	 * Transacción que vuelve de un respaldo (docs/adr/0020), con su id original y origen MIGRACION:
+	 * clasificacion no le aplica sus reglas automáticas (su clasificación viene en el propio respaldo).
+	 */
+	public static Transaccion restaurar(TransaccionId id, UsuarioId propietario, CuentaId cuentaId, DocumentoId documentoId,
+			LocalDate fechaContable, LocalDate fechaValor, Concepto concepto, String nota, Importe importe, Importe saldo, int orden,
+			int ordenDocumento) {
+		Datos datos = new Datos(id, cuentaId, documentoId, fechaContable, fechaValor, concepto, nota, importe, saldo, orden,
+				ordenDocumento, Origen.MIGRACION, ClaveDuplicado.de(fechaContable, importe, concepto));
+		Transaccion transaccion = new Transaccion(propietario, datos, 0);
+		transaccion.registrarEvento(new TransaccionRegistrada(propietario, transaccion.siguienteVersion(), datos));
+		return transaccion;
+	}
+
 	public static Transaccion reconstituir(UsuarioId propietario, Datos datos, long version) {
 		return new Transaccion(propietario, datos, version);
 	}

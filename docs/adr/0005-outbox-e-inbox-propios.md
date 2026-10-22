@@ -46,3 +46,14 @@ Opción 3, porque el patrón es parte de lo que se quiere aprender y tener a la 
 - ⚠️ El id del outbox se asigna al insertar y no al confirmar, así que dos transacciones concurrentes
   pueden publicarse en orden distinto al de su commit. Las versiones por agregado cubren el caso
   ([0010](0010-consultas-cqrs-reconstruible-por-replay.md)).
+
+## Notas de implementación (F10, 2026-10-22)
+
+- **El relay trabaja en READ COMMITTED.** Con el REPEATABLE READ por defecto de MariaDB, el
+  `SELECT ... WHERE publicado_en IS NULL ... FOR UPDATE SKIP LOCKED` bloquea también el hueco que hay
+  tras el último pendiente, que es justo donde se insertan los eventos nuevos. Un caso de uso que
+  escribía en el outbox esperaba en ese hueco y, con el `UPDATE ... SET publicado_en` del relay, se
+  formaba un interbloqueo: MariaDB abortaba la transacción de negocio (un 500 para el usuario). Lo
+  destapó un `CatalogoIT` intermitente. En READ COMMITTED InnoDB solo bloquea las filas leídas, y
+  `SKIP LOCKED` sigue saltándose las que otro relay tenga cogidas. La limpieza de publicados va en la
+  misma transacción READ COMMITTED por el mismo motivo.

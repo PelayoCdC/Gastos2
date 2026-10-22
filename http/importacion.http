@@ -81,3 +81,19 @@ Content-Type: application/json
 ### Borrar el formato (los documentos ya importados no cambian)
 DELETE {{importacion}}/formatos/{{formato}}
 Authorization: Bearer {{token}}
+
+### Restaurar un respaldo v1 (del back antiguo, del móvil o de GET /api/consultas/exportacion/v1).
+### Sin modo solo SIMULA: conteos y anomalías, sin tocar nada.
+POST {{importacion}}/respaldos
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+< ./respaldo.json
+
+### SUSTITUIR reemplaza TODOS los datos del usuario por los del respaldo (cuentas, movimientos, catálogo,
+### clasificaciones y formatos). Repetirlo deja el mismo estado.
+POST {{importacion}}/respaldos?modo=SUSTITUIR
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+< ./respaldo.json

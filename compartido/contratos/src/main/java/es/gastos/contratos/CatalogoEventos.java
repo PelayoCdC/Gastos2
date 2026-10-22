@@ -1,6 +1,7 @@
 package es.gastos.contratos;
 
 import es.gastos.contratos.clasificacion.v1.CategoriaEliminada;
+import es.gastos.contratos.clasificacion.v1.ClasificacionRestaurada;
 import es.gastos.contratos.clasificacion.v1.CategoriaGuardada;
 import es.gastos.contratos.clasificacion.v1.EtiquetaEliminada;
 import es.gastos.contratos.clasificacion.v1.EtiquetaGuardada;
@@ -8,12 +9,14 @@ import es.gastos.contratos.clasificacion.v1.TransaccionClasificada;
 import es.gastos.contratos.identidad.v1.UsuarioRegistrado;
 import es.gastos.contratos.importacion.v1.FormatoBancoEliminado;
 import es.gastos.contratos.importacion.v1.FormatoBancoGuardado;
+import es.gastos.contratos.importacion.v1.FormatosRestaurados;
 import es.gastos.contratos.movimientos.v1.CuentaEliminada;
 import es.gastos.contratos.movimientos.v1.CuentaGuardada;
 import es.gastos.contratos.movimientos.v1.DocumentoEliminado;
 import es.gastos.contratos.movimientos.v1.DocumentoReasignado;
 import es.gastos.contratos.movimientos.v1.DocumentoRegistrado;
 import es.gastos.contratos.movimientos.v1.DocumentoRenombrado;
+import es.gastos.contratos.movimientos.v1.MovimientosRestaurados;
 import es.gastos.contratos.movimientos.v1.TransaccionCorregida;
 import es.gastos.contratos.movimientos.v1.TransaccionEliminada;
 import es.gastos.contratos.movimientos.v1.TransaccionRegistrada;
@@ -58,15 +61,18 @@ public final class CatalogoEventos {
 			new Entrada(TransaccionRegistrada.TIPO, 1, Topics.MOVIMIENTOS, TransaccionRegistrada.class),
 			new Entrada(TransaccionCorregida.TIPO, 1, Topics.MOVIMIENTOS, TransaccionCorregida.class),
 			new Entrada(TransaccionEliminada.TIPO, 1, Topics.MOVIMIENTOS, TransaccionEliminada.class),
+			new Entrada(MovimientosRestaurados.TIPO, 1, Topics.MOVIMIENTOS, MovimientosRestaurados.class),
 
 			new Entrada(CategoriaGuardada.TIPO, 1, Topics.CLASIFICACION, CategoriaGuardada.class),
 			new Entrada(CategoriaEliminada.TIPO, 1, Topics.CLASIFICACION, CategoriaEliminada.class),
 			new Entrada(EtiquetaGuardada.TIPO, 1, Topics.CLASIFICACION, EtiquetaGuardada.class),
 			new Entrada(EtiquetaEliminada.TIPO, 1, Topics.CLASIFICACION, EtiquetaEliminada.class),
 			new Entrada(TransaccionClasificada.TIPO, 1, Topics.CLASIFICACION, TransaccionClasificada.class),
+			new Entrada(ClasificacionRestaurada.TIPO, 1, Topics.CLASIFICACION, ClasificacionRestaurada.class),
 
 			new Entrada(FormatoBancoGuardado.TIPO, 1, Topics.IMPORTACION, FormatoBancoGuardado.class),
-			new Entrada(FormatoBancoEliminado.TIPO, 1, Topics.IMPORTACION, FormatoBancoEliminado.class)
+			new Entrada(FormatoBancoEliminado.TIPO, 1, Topics.IMPORTACION, FormatoBancoEliminado.class),
+			new Entrada(FormatosRestaurados.TIPO, 1, Topics.IMPORTACION, FormatosRestaurados.class)
 	);
 
 	private static final Map<String, Entrada> POR_CLAVE = ENTRADAS.stream()

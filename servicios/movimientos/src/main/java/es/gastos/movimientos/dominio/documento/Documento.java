@@ -50,6 +50,19 @@ public final class Documento extends RaizAgregado<DocumentoId> {
 		return documento;
 	}
 
+	/**
+	 * Documento que vuelve de un respaldo (docs/adr/0020), con su id original. A diferencia de un
+	 * extracto recién importado, puede no tener cuenta (el back antiguo lo permitía) y no guarda
+	 * resultado de registro: no hay importación que reintentar.
+	 */
+	public static Documento restaurar(DocumentoId id, UsuarioId propietario, CuentaId cuentaId, NombreDocumento nombre,
+			String nombreArchivo, LocalDate fecha) {
+		Documento documento = new Documento(id, propietario, cuentaId, nombre, nombreArchivo, fecha, null, 0);
+		documento.registrarEvento(new DocumentoRegistrado(id, propietario, documento.siguienteVersion(), cuentaId, nombre,
+				nombreArchivo, fecha));
+		return documento;
+	}
+
 	/** {@code cuentaId} solo puede ser nulo en documentos migrados del back antiguo. */
 	public static Documento reconstituir(DocumentoId id, UsuarioId propietario, CuentaId cuentaId, NombreDocumento nombre,
 			String nombreArchivo, LocalDate fecha, String resultadoRegistro, long version) {

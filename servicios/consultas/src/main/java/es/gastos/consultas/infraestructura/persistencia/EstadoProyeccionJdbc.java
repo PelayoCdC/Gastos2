@@ -14,7 +14,7 @@ class EstadoProyeccionJdbc implements EstadoProyeccion {
 
 	/** Todas las tablas que se rellenan con eventos; las de Flyway, outbox e inbox no se tocan. */
 	private static final List<String> TABLAS = List.of("transaccion_etiqueta_vista", "transaccion_vista", "documento_vista",
-			"cuenta_vista", "etiqueta_vista", "categoria_vista", "proyeccion_posicion");
+			"cuenta_vista", "etiqueta_vista", "categoria_vista", "formato_vista", "proyeccion_posicion");
 
 	private final JdbcClient jdbc;
 

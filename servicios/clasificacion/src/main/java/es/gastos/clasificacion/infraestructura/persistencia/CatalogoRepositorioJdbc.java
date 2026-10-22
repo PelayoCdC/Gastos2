@@ -16,6 +16,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -181,6 +182,21 @@ class CatalogoRepositorioJdbc implements CatalogoRepositorio {
 	@Override
 	public void eliminar(Etiqueta etiqueta) {
 		this.jdbc.sql("DELETE FROM etiqueta WHERE id = :id").param("id", etiqueta.id().valor()).update();
+	}
+
+	/** Las ocurrencias se van en cascada; primero las etiquetas, que apuntan a las categorías. */
+	@Override
+	public void eliminarDelUsuario(UsuarioId usuario) {
+		this.jdbc.sql("DELETE FROM etiqueta WHERE usuario_id = :usuario").param("usuario", usuario.valor()).update();
+		this.jdbc.sql("DELETE FROM categoria WHERE usuario_id = :usuario").param("usuario", usuario.valor()).update();
+	}
+
+	@Override
+	public boolean algunoDeOtroUsuario(UsuarioId usuario, Collection<UUID> ids) {
+		return !ids.isEmpty() && this.jdbc.sql("""
+						SELECT (SELECT COUNT(*) FROM categoria WHERE id IN (:ids) AND usuario_id <> :usuario)
+						     + (SELECT COUNT(*) FROM etiqueta WHERE id IN (:ids) AND usuario_id <> :usuario)""")
+				.param("ids", ids).param("usuario", usuario.valor()).query(Long.class).single() > 0;
 	}
 
 	private List<Categoria> categoriasDonde(String condicion, UUID valor) {

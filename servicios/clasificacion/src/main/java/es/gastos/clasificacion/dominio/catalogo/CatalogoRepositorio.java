@@ -2,8 +2,10 @@ package es.gastos.clasificacion.dominio.catalogo;
 
 import es.gastos.kernel.dominio.UsuarioId;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Puerto de persistencia del catálogo de un usuario. Categorías y etiquetas son agregados distintos
@@ -38,4 +40,10 @@ public interface CatalogoRepositorio {
 	void eliminar(Categoria categoria);
 
 	void eliminar(Etiqueta etiqueta);
+
+	/** Borra todo el catálogo del usuario (restaurar un respaldo); antes hay que olvidar sus clasificaciones. */
+	void eliminarDelUsuario(UsuarioId usuario);
+
+	/** Si alguna categoría o etiqueta con esos ids ya es de otro usuario. */
+	boolean algunoDeOtroUsuario(UsuarioId usuario, Collection<UUID> ids);
 }

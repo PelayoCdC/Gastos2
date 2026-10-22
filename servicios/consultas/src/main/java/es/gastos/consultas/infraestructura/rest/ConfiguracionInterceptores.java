@@ -16,6 +16,6 @@ class ConfiguracionInterceptores implements WebMvcConfigurer {
 
 	@Override
 	public void addInterceptors(InterceptorRegistry registro) {
-		registro.addInterceptor(this.esperaConsistencia).addPathPatterns("/transacciones/**", "/informes/**");
+		registro.addInterceptor(this.esperaConsistencia).addPathPatterns("/transacciones/**", "/informes/**", "/exportacion/**");
 	}
 }

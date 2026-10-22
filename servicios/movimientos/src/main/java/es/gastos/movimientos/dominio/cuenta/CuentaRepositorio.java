@@ -2,7 +2,9 @@ package es.gastos.movimientos.dominio.cuenta;
 
 import es.gastos.kernel.dominio.UsuarioId;
 
+import java.util.Collection;
 import java.util.Optional;
+import java.util.UUID;
 
 /** Puerto de persistencia de cuentas. */
 public interface CuentaRepositorio {
@@ -21,4 +23,10 @@ public interface CuentaRepositorio {
 	boolean existeNombre(UsuarioId usuario, String nombreNormalizado, CuentaId excepto);
 
 	void eliminar(Cuenta cuenta);
+
+	/** Borra todas las cuentas del usuario (restaurar un respaldo); antes hay que borrar sus documentos y transacciones. */
+	void eliminarDelUsuario(UsuarioId usuario);
+
+	/** Si alguno de esos ids ya es de otro usuario (un respaldo de otra cuenta no puede reutilizarlos). */
+	boolean algunoDeOtroUsuario(UsuarioId usuario, Collection<UUID> ids);
 }

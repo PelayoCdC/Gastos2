@@ -142,3 +142,22 @@ Todas las llamadas llevan el JWT del usuario, reenviado por el servicio que llam
 
 El documento se crea aunque no haya ninguna fila nueva, como en el back antiguo. Así queda constancia
 de la importación y de sus duplicados.
+
+## Restauración de respaldos (F10)
+
+`PUT /internal/respaldos/v1[?simular=true]` (lo llama importacion, con el JWT del usuario,
+[ADR 0020](../adr/0020-restauracion-v1-con-uuid-originales.md)). Recibe `{cuentas[], documentos[],
+transacciones[]}` ya traducidos y responde `{cuentas, documentos, transacciones, anomalias[]}`.
+
+- **`PlanRestauracion`** (dominio, puro) construye los agregados con sus **ids originales** y anota cada
+  corrección:
+  - cuentas con el mismo nombre normalizado → se fusionan en la primera;
+  - documentos sin cuenta (el antiguo lo permitía) se conservan; sin fecha, la de hoy;
+  - transacciones sin fecha o importe se descartan; referencias a cuentas o documentos que no están en
+    el respaldo se quitan;
+  - **saldos a 0** de un documento sin ningún saldo real, y de las altas a mano, quedan sin saldo (el
+    `float` del antiguo no admitía nulos).
+- **`RestaurarMovimientos`** (aplicación): con `simular` solo devuelve el informe; si no, en una
+  transacción borra las transacciones, documentos y cuentas del usuario, publica `MovimientosRestaurados`
+  y después `CuentaGuardada`, `DocumentoRegistrado` y `TransaccionRegistrada` (origen MIGRACION) de cada
+  cosa. Repetirlo deja el mismo estado.

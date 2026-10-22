@@ -74,6 +74,8 @@ class ImportacionIT {
 
 	private static final List<String> AUTORIZACIONES_RECIBIDAS = new CopyOnWriteArrayList<>();
 
+	private static final List<String> RESPALDOS_RECIBIDOS = new CopyOnWriteArrayList<>();
+
 	private static final HttpServer MOVIMIENTOS = movimientosSimulado();
 
 	@Autowired
@@ -94,6 +96,8 @@ class ImportacionIT {
 	@DynamicPropertySource
 	static void configurar(DynamicPropertyRegistry registro) {
 		registro.add("gastos.servicios.movimientos", () -> "http://localhost:" + MOVIMIENTOS.getAddress().getPort());
+		// El mismo servidor simulado hace también de clasificacion para los respaldos
+		registro.add("gastos.servicios.clasificacion", () -> "http://localhost:" + MOVIMIENTOS.getAddress().getPort());
 	}
 
 	@AfterAll
@@ -199,6 +203,43 @@ class ImportacionIT {
 				.andExpect(status().isNotFound());
 		this.mvc.perform(como(multipart("/importaciones").file(archivo("e.csv", csv))).param("formatoId", formato))
 				.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void restauraUnRespaldoRepartiendoloYSustituyeLosFormatosSoloSiSePide() throws Exception {
+		String anterior = this.crearFormato("Formato anterior");
+		String transaccion = UUID.randomUUID().toString();
+		String respaldo = """
+				{"version":1,"generadoEn":"2026-10-22","cuentas":[],"categorias":[],"etiquetas":[],"documentos":[],
+				 "configuracionesImportacion":[{"id":"%s","nombre":"Restaurado","filaInicio":2,"columnaConcepto":1,
+				   "columnaImporte":2,"columnaFechaContable":0,"columnaFechaValor":null,"columnaSaldo":null,"formatoFecha":"dd/MM/yyyy"}],
+				 "transacciones":[{"id":"%s","concepto":"CAFE","nota":null,"importe":-1.5,"saldo":0.0,"orden":1,"ordenDocumento":1,
+				   "fechaContable":"2026-07-01","fechaValor":null,"idCuenta":null,"idDocumento":null,"idCategoria":null,"idsEtiquetas":[]},
+				  {"id":"%s","concepto":"SIN FECHA","importe":-1,"saldo":0,"orden":2,"ordenDocumento":2,"fechaContable":null}]}"""
+				.formatted(UUID.randomUUID(), transaccion, UUID.randomUUID());
+
+		// Por defecto solo simula
+		this.mvc.perform(como(post("/respaldos")).content(respaldo))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.modo").value("SIMULAR"))
+				.andExpect(jsonPath("$.transacciones").value(1))
+				.andExpect(jsonPath("$.formatos").value(1))
+				.andExpect(jsonPath("$.anomalias[0]").value("1 transacciones sin id, fecha contable o importe no se pueden restaurar: se descartan"));
+		this.mvc.perform(como(get("/formatos/" + anterior))).andExpect(status().isOk());
+		assertThat(RESPALDOS_RECIBIDOS).hasSize(2).allMatch(r -> r.startsWith("simular=true"));
+
+		this.mvc.perform(como(post("/respaldos").param("modo", "SUSTITUIR")).content(respaldo))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.categorias").value(1))
+				.andExpect(header().string("Gastos-Secuencia", matchesPattern("movimientos=88,clasificacion=77,importacion=\\d+")));
+		this.mvc.perform(como(get("/formatos")))
+				.andExpect(jsonPath("$.length()").value(1))
+				.andExpect(jsonPath("$[0].nombre").value("Restaurado"));
+		assertThat(RESPALDOS_RECIBIDOS.getLast()).startsWith("simular=false").contains(transaccion).doesNotContain("SIN FECHA");
+
+		this.mvc.perform(como(post("/respaldos")).content("{\"version\":2}"))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.codigo").value("RESPALDO_NO_VALIDO"));
 	}
 
 	@Test
@@ -323,6 +364,21 @@ class ImportacionIT {
 					intercambio.getResponseHeaders().add("Gastos-Secuencia", "movimientos=4242");
 				}
 				intercambio.sendResponseHeaders(estado, bytes.length);
+				intercambio.getResponseBody().write(bytes);
+				intercambio.close();
+			});
+			servidor.createContext("/internal/respaldos/v1", intercambio -> {
+				String peticion = new String(intercambio.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+				RESPALDOS_RECIBIDOS.add(intercambio.getRequestURI().getQuery() + " " + peticion);
+				boolean esClasificacion = peticion.contains("\"categorias\"");
+				String cuerpo = esClasificacion
+						? "{\"categorias\":1,\"etiquetas\":0,\"clasificadas\":1,\"anomalias\":[\"de clasificacion\"]}"
+						: "{\"cuentas\":1,\"documentos\":0,\"transacciones\":%d,\"anomalias\":[]}"
+								.formatted(JsonPath.<List<?>>read(peticion, "$.transacciones").size());
+				byte[] bytes = cuerpo.getBytes(StandardCharsets.UTF_8);
+				intercambio.getResponseHeaders().add("Content-Type", "application/json");
+				intercambio.getResponseHeaders().add("Gastos-Secuencia", esClasificacion ? "clasificacion=77" : "movimientos=88");
+				intercambio.sendResponseHeaders(200, bytes.length);
 				intercambio.getResponseBody().write(bytes);
 				intercambio.close();
 			});

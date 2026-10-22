@@ -3,6 +3,8 @@ package es.gastos.movimientos.infraestructura.interno;
 import es.gastos.compartido.web.UsuarioActual;
 import es.gastos.kernel.dominio.UsuarioId;
 import es.gastos.movimientos.aplicacion.extractos.RegistrarExtracto;
+import es.gastos.movimientos.aplicacion.respaldo.RestaurarMovimientos;
+import es.gastos.movimientos.dominio.respaldo.PlanRestauracion;
 import es.gastos.movimientos.aplicacion.extractos.ResultadoExtracto;
 import es.gastos.movimientos.aplicacion.transacciones.DatosTransaccion;
 import es.gastos.movimientos.aplicacion.transacciones.GestionTransacciones;
@@ -14,8 +16,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.math.BigDecimal;
@@ -45,13 +49,20 @@ class MovimientosInternoController {
 	record PeticionConsulta(@NotNull List<UUID> ids) {
 	}
 
+	record PeticionRespaldo(List<PlanRestauracion.CuentaRespaldo> cuentas, List<PlanRestauracion.DocumentoRespaldo> documentos,
+			List<PlanRestauracion.TransaccionRespaldo> transacciones) {
+	}
+
 	private final RegistrarExtracto registrarExtracto;
 
 	private final GestionTransacciones transacciones;
 
-	MovimientosInternoController(RegistrarExtracto registrarExtracto, GestionTransacciones transacciones) {
+	private final RestaurarMovimientos restaurar;
+
+	MovimientosInternoController(RegistrarExtracto registrarExtracto, GestionTransacciones transacciones, RestaurarMovimientos restaurar) {
 		this.registrarExtracto = registrarExtracto;
 		this.transacciones = transacciones;
+		this.restaurar = restaurar;
 	}
 
 	@PostMapping("/extractos")
@@ -72,5 +83,17 @@ class MovimientosInternoController {
 	@PostMapping("/transacciones/consulta")
 	List<DatosTransaccion> transacciones(@UsuarioActual UsuarioId usuario, @Valid @RequestBody PeticionConsulta peticion) {
 		return this.transacciones.consultarVarias(usuario, peticion.ids().stream().map(TransaccionId::new).toList());
+	}
+
+	/**
+	 * Parte de movimientos de la restauración de un respaldo, ya traducido por importacion
+	 * (docs/adr/0020). Con {@code simular=true} solo informa de lo que haría. {@code PUT} porque sustituye
+	 * y repetirlo da el mismo resultado.
+	 */
+	@PutMapping("/respaldos/v1")
+	RestaurarMovimientos.Resumen restaurar(@UsuarioActual UsuarioId usuario, @RequestParam(defaultValue = "false") boolean simular,
+			@RequestBody PeticionRespaldo peticion) {
+		return this.restaurar.ejecutar(new RestaurarMovimientos.Comando(usuario, peticion.cuentas(), peticion.documentos(),
+				peticion.transacciones(), simular));
 	}
 }

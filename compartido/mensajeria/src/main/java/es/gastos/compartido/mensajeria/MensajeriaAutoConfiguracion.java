@@ -29,6 +29,7 @@ import org.springframework.kafka.listener.CommonErrorHandler;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.backoff.FixedBackOff;
 import tools.jackson.databind.json.JsonMapper;
@@ -92,7 +93,20 @@ public class MensajeriaAutoConfiguracion {
 	@ConditionalOnProperty(name = "gastos.mensajeria.publica", havingValue = "true", matchIfMissing = true)
 	RelayOutbox relayOutbox(OutboxRepositorio outbox, KafkaTemplate<String, String> kafka, PlatformTransactionManager gestor,
 			JsonMapper json, Clock reloj, PropiedadesMensajeria propiedades) {
-		return new RelayOutbox(outbox, kafka, new TransactionTemplate(gestor), json, reloj, propiedades);
+		return new RelayOutbox(outbox, kafka, transaccionDelRelay(gestor), json, reloj, propiedades);
+	}
+
+	/**
+	 * READ COMMITTED y no el REPEATABLE READ por defecto de MariaDB: con este último, el
+	 * {@code SELECT ... FOR UPDATE SKIP LOCKED} del relay bloquea también el hueco tras el último
+	 * pendiente, los casos de uso que insertan eventos nuevos en ese hueco esperan, y con el
+	 * {@code UPDATE} del relay se forma un interbloqueo (lo destapó un test intermitente en F10). En
+	 * READ COMMITTED solo se bloquean las filas leídas, que nadie más toca.
+	 */
+	static TransactionTemplate transaccionDelRelay(PlatformTransactionManager gestor) {
+		TransactionTemplate transaccion = new TransactionTemplate(gestor);
+		transaccion.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
+		return transaccion;
 	}
 
 	@Bean

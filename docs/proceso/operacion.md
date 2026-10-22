@@ -62,6 +62,31 @@ y relee los topics desde el principio.
 - **Requisito:** el volumen `datos-kafka` tiene que conservar todo el historial (retención infinita). Si
   se pierde, consultas no se puede reconstruir; el plan B (`republicar-estado`) llega en F11.
 
+## Copias de seguridad y migración desde el back antiguo
+
+Un respaldo es el JSON v1 de un usuario ([ADR 0020](../adr/0020-restauracion-v1-con-uuid-originales.md)):
+
+- **Exportar:** `GET /api/consultas/exportacion/v1` (o `GET /migracion/exportar` en el back antiguo).
+- **Restaurar:** `POST /api/importacion/respaldos` con el JSON. Por defecto solo **simula** (conteos y
+  anomalías, sin tocar nada); `?modo=SUSTITUIR` reemplaza **todos** los datos del usuario.
+- **Comparar** dos respaldos (por ejemplo, el exportado del origen y el reexportado del destino):
+
+  ```bash
+  node scripts/comparar-respaldos.mjs origen.json destino.json
+  ```
+
+**Migrar los datos reales del back antiguo:**
+
+1. Con el stack antiguo levantado, el usuario exporta sus datos ("Exportar mis datos" en la web, que
+   llama a `GET /migracion/exportar`). El volumen `gastos_datos-mariadb` no se toca.
+2. Se registra en Gastos2 (`POST /api/identidad/registros`).
+3. Restaura en modo SIMULAR y revisa las anomalías (nombres repetidos que se fusionan, saldos a 0 que
+   pasan a desconocidos, transacciones descartadas).
+4. Restaura con `modo=SUSTITUIR`.
+5. Exporta desde Gastos2 y compara con `scripts/comparar-respaldos.mjs`. Las diferencias tienen que
+   coincidir con las anomalías del paso 3.
+6. Para la app móvil: Ajustes → restaurar, con el respaldo exportado de Gastos2.
+
 ## Problemas conocidos del entorno (Windows + Docker Desktop)
 
 - **Docker Desktop no arranca tras reiniciar Windows.** El backend falla con "initializing Inference
@@ -79,6 +104,5 @@ y relee los topics desde el principio.
 
 | Tarea | Fase |
 |---|---|
-| Restaurar un respaldo y migrar desde el back antiguo | F10 |
 | Revisar los DLT y reprocesar eventos | F11 |
 | Observabilidad (trazas, métricas, logs) | F11 |

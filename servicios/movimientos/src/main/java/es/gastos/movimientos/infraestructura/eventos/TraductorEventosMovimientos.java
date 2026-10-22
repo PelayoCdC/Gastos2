@@ -8,6 +8,7 @@ import es.gastos.contratos.movimientos.v1.DocumentoEliminado;
 import es.gastos.contratos.movimientos.v1.DocumentoReasignado;
 import es.gastos.contratos.movimientos.v1.DocumentoRegistrado;
 import es.gastos.contratos.movimientos.v1.DocumentoRenombrado;
+import es.gastos.contratos.movimientos.v1.MovimientosRestaurados;
 import es.gastos.contratos.movimientos.v1.TransaccionCorregida;
 import es.gastos.contratos.movimientos.v1.TransaccionEliminada;
 import es.gastos.contratos.movimientos.v1.TransaccionRegistrada;
@@ -43,6 +44,8 @@ class TraductorEventosMovimientos implements TraductorEventos {
 			case es.gastos.movimientos.dominio.transaccion.TransaccionCorregida e -> corregida(e.datos());
 			case es.gastos.movimientos.dominio.transaccion.TransaccionEliminada e ->
 					new TransaccionEliminada(e.transaccionId().valor(), documento(e.documentoId()));
+			case es.gastos.movimientos.dominio.respaldo.MovimientosRestaurados e ->
+					new MovimientosRestaurados(e.cuentas(), e.documentos(), e.transacciones());
 			default -> null;
 		};
 		return Optional.ofNullable(traducido);

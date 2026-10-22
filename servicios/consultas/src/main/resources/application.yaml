@@ -27,6 +27,7 @@ gastos:
     consume:
       - movimientos.eventos
       - clasificacion.eventos
+      - importacion.eventos
   consultas:
     proyeccion:
       # Grupo consultas-v<version>: cambiarla hace que un grupo nuevo relea los topics desde el principio (docs/adr/0010)

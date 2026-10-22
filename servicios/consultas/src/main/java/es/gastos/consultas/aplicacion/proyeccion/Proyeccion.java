@@ -53,6 +53,23 @@ public interface Proyeccion {
 	/** Evento de conjunto: se quita de todas las transacciones que la tenían. */
 	void eliminarEtiqueta(UsuarioId usuario, UUID etiquetaId, long version);
 
+	void guardarFormato(UsuarioId usuario, Formato formato, long version);
+
+	void eliminarFormato(UsuarioId usuario, UUID formatoId, long version);
+
+	/**
+	 * Restauración de un respaldo (docs/adr/0020): olvida los hechos de movimientos del usuario (cuentas,
+	 * documentos y la parte de movimientos de sus transacciones) dejando lápidas en versión 0, para que
+	 * las altas restauradas, que pueden traer los mismos ids en versión 1, vuelvan a mostrarse. No toca la
+	 * parte de clasificación: llega por otro topic y puede haberse restaurado ya.
+	 */
+	void restaurarMovimientos(UsuarioId usuario);
+
+	/** Como {@link #restaurarMovimientos}, para la parte de clasificación, el catálogo y las etiquetas asignadas. */
+	void restaurarClasificacion(UsuarioId usuario);
+
+	void restaurarFormatos(UsuarioId usuario);
+
 	record Cuenta(UUID id, String nombre, String banco, String descripcion) {
 	}
 
@@ -72,5 +89,9 @@ public interface Proyeccion {
 	}
 
 	record Etiqueta(UUID id, String nombre, String descripcion, List<String> ocurrencias, UUID categoriaId, int prioridad) {
+	}
+
+	record Formato(UUID id, String nombre, int filaInicio, int columnaConcepto, int columnaImporte, int columnaFechaContable,
+			Integer columnaFechaValor, Integer columnaSaldo, String formatoFecha) {
 	}
 }
