@@ -36,3 +36,19 @@ Opción 3.
 - ⚠️ Las peticiones con `Gastos-Esperar` pueden tardar más. El tope de 3 s acota el peor caso.
 - ⚠️ La clasificación automática tras importar es un efecto asíncrono de otro servicio: la secuencia de
   la importación no la cubre. La pantalla de importación lo explica ("clasificando…").
+
+## Notas de implementación (F8, 2026-10-22)
+
+- **La cabecera la pone un filtro de `compartido/mensajeria`** (`FiltroSecuenciaPublicada`), no cada
+  controlador. `PublicadorEventosOutbox` anota la secuencia de cada evento escrito en el hilo de la
+  petición, y el filtro envuelve la respuesta para poner la cabecera en el último momento: al empezar a
+  escribir el cuerpo o, si no hay cuerpo (204), al terminar. Las respuestas de error y las lecturas no la
+  llevan.
+- **Un comando puede devolver secuencias de varios contextos** (`movimientos=12,clasificacion=3`).
+  importacion no escribe los eventos de una importación (los escribe movimientos), así que reenvía la
+  `Gastos-Secuencia` que le devuelve movimientos.
+- **consultas ignora los contextos que no proyecta.** Esperar a `identidad=5` agotaría siempre los 3 s;
+  se descarta antes de esperar.
+- **Una cabecera mal formada es un 400** (`CABECERA_INVALIDA`) en vez de ignorarse: si se ignorara, el
+  front creería estar leyendo datos al día.
+- **El tope se cuenta por intentos** (60 de 50 ms) y no por reloj, para poder probarlo sin dormir.

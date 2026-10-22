@@ -8,14 +8,19 @@ import org.apache.kafka.common.config.TopicConfig;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.flyway.autoconfigure.FlywayConfigurationCustomizer;
 import org.springframework.boot.jdbc.autoconfigure.DataSourceTransactionManagerAutoConfiguration;
 import org.springframework.boot.jdbc.autoconfigure.JdbcClientAutoConfiguration;
 import org.springframework.boot.kafka.autoconfigure.KafkaAutoConfiguration;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.core.Ordered;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.kafka.config.TopicBuilder;
 import org.springframework.kafka.core.KafkaAdmin;
@@ -94,9 +99,24 @@ public class MensajeriaAutoConfiguracion {
 	@ConditionalOnBean(TraductorEventos.class)
 	@ConditionalOnMissingBean(PublicadorEventos.class)
 	PublicadorEventos publicadorEventos(TraductorEventos traductor, OutboxRepositorio outbox, JsonMapper json, Clock reloj,
-			ObjectProvider<RelayOutbox> relay) {
+			ObjectProvider<RelayOutbox> relay, PropiedadesMensajeria propiedades) {
 		return new PublicadorEventosOutbox(traductor, outbox, json, reloj,
-				() -> relay.ifAvailable(RelayOutbox::despertar));
+				() -> relay.ifAvailable(RelayOutbox::despertar), propiedades.contexto());
+	}
+
+	/** Cabecera {@code Gastos-Secuencia} en las respuestas de los comandos (docs/adr/0011). */
+	@Configuration(proxyBeanMethods = false)
+	@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
+	@ConditionalOnClass(name = "org.springframework.web.filter.OncePerRequestFilter")
+	static class SecuenciaEnRespuestas {
+
+		@Bean
+		FilterRegistrationBean<FiltroSecuenciaPublicada> filtroSecuenciaPublicada() {
+			FilterRegistrationBean<FiltroSecuenciaPublicada> registro = new FilterRegistrationBean<>(new FiltroSecuenciaPublicada());
+			// Por fuera de la cadena de seguridad, para envolver la respuesta antes que nadie
+			registro.setOrder(Ordered.HIGHEST_PRECEDENCE + 10);
+			return registro;
+		}
 	}
 
 	/** Topic propio con retención infinita: es el log del que se reconstruyen las proyecciones (docs/adr/0010). */

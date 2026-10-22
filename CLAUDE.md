@@ -45,6 +45,13 @@ docker compose up -d mariadb kafka --wait     # MariaDB (host 3307) y Kafka (hos
   `PublicadorEventos` dentro de la unidad de trabajo. Eso escribe en el **outbox** y un relay los
   envía a Kafka. Hay un topic por contexto (`<ctx>.eventos`) con clave = `usuarioId`. Los
   consumidores con efectos usan **inbox** (idempotencia); las proyecciones usan versiones.
+- **Leer lo que acabas de escribir**: las respuestas de los comandos llevan `Gastos-Secuencia` sin
+  hacer nada (lo pone un filtro de `compartido/mensajeria` con lo que escribió el outbox); consultas
+  atiende `Gastos-Esperar`. Si un servicio provoca escrituras en otro, reenvía su secuencia con
+  `SecuenciaPublicada.registrarCabecera(...)` (ver `RegistroMovimientosHttp`).
+- **Llamadas entre servicios**: síncronas solo por `/internal/**`, reenviando el JWT del usuario con
+  `UsuarioAutenticado.cabeceraAutorizacion()` (sin cuentas de servicio) y con `@Retryable` ante fallos
+  de red.
 - **Multiusuario**: todo pertenece a un usuario; un recurso ajeno es **404**, nunca 403. El usuario sale
   del JWT (`sub`), nunca del cliente.
 - **Dinero**: `Importe` (BigDecimal, escala 2). Los nombres son únicos por usuario sobre

@@ -50,3 +50,15 @@ Opción 3: el servicio `consultas`.
 - ⚠️ La reconstrucción depende de que el volumen de Kafka se conserve y de que **todas** las escrituras
   pasen por casos de uso y outbox, incluida la migración. Nunca se inserta directamente en la base de
   datos de un servicio.
+
+## Notas de implementación (F8, 2026-10-22)
+
+- **Proyección por lotes.** El consumidor recibe hasta 500 mensajes y los aplica en una sola
+  transacción; si el lote falla, los repite uno a uno y señala el culpable con
+  `BatchListenerFailedException` para que vaya al DLT sin bloquear la partición. Reaplicar los buenos no
+  hace daño porque cada operación es idempotente por versión.
+- **Esqueleto + `UPDATE` protegido.** Cada escritura empieza con `INSERT IGNORE` de la fila (id y
+  usuario) y sigue con `UPDATE ... WHERE version_x < :version`. Si el `UPDATE` no toca ninguna fila, el
+  evento era antiguo y tampoco se aplican sus efectos de conjunto.
+- **El grupo ya es `consultas-v${gastos.consultas.proyeccion.version}`**; vaciar las tablas al cambiar
+  la versión llega en F9.

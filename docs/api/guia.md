@@ -20,7 +20,12 @@ Convenciones generales de la API pública (a través del gateway). El porqué es
 - **Respuestas de los comandos:**
   - Crear devuelve `201 Created` con `Location`.
   - Borrar devuelve `204 No Content`.
-  - Cabecera `Gastos-Secuencia` ([ADR 0011](../adr/0011-leer-lo-que-acabas-de-escribir.md)).
+  - Cabecera `Gastos-Secuencia: <contexto>=<n>[,<contexto>=<n>]` en las respuestas correctas que han
+    escrito eventos ([ADR 0011](../adr/0011-leer-lo-que-acabas-de-escribir.md)).
+- **Leer lo que acabas de escribir:** el cliente guarda el máximo de cada contexto que ve en
+  `Gastos-Secuencia` y lo envía en `Gastos-Esperar` (mismo formato) al consultar en `/api/consultas`.
+  consultas espera hasta 3 s a tener esos eventos proyectados; si no llegan, responde igualmente con
+  `Gastos-Desfase: true`.
 
 ## Recursos por contexto
 
@@ -63,6 +68,12 @@ Ejemplos: [`http/clasificacion.http`](../../http/clasificacion.http).
 Formatos de banco, previsualización e importación de extractos (multipart, hasta 10 MB): tabla completa
 en [dominio/importacion.md](../dominio/importacion.md#api-a-través-del-gateway-apiimportacion).
 Ejemplos: [`http/importacion.http`](../../http/importacion.http).
+
+### consultas (`/api/consultas`)
+
+Rejilla, detalle y exportación a Excel de las transacciones, con filtros por id y orden en lista
+blanca: tabla completa en [dominio/consultas.md](../dominio/consultas.md#api-a-través-del-gateway-apiconsultas).
+Ejemplos: [`http/consultas.http`](../../http/consultas.http).
 
 ### Errores propios del gateway
 

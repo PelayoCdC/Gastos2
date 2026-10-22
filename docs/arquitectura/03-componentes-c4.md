@@ -56,7 +56,7 @@ flowchart LR
 | movimientos | [movimientos](#movimientos) | F3–F4 ✅ |
 | clasificacion | [clasificacion](#clasificacion) | F5–F6 ✅ |
 | importacion | [importacion](#importacion) | F7 ✅ |
-| consultas | (pendiente) | F8–F9 |
+| consultas | [consultas](#consultas) | F8 ✅ (informes en F9) |
 
 ## identidad
 
@@ -243,3 +243,46 @@ flowchart LR
 Dependencias del dominio: `extracto → formato` (el intérprete usa el formato), nunca al revés. POI solo
 aparece en `infraestructura/lectura`: el dominio trabaja con la `Hoja` neutral, y por eso el
 intérprete se prueba sin ficheros.
+
+## consultas
+
+```mermaid
+flowchart LR
+    subgraph in [Entrada]
+        kafka["ConsumidorEventos (por lotes)<br/>movimientos.eventos · clasificacion.eventos"]
+        rest["TransaccionesController<br/>/transacciones, /{id}, /exportacion"]
+        esp["InterceptorEsperaConsistencia<br/>(Gastos-Esperar → Gastos-Desfase)"]
+    end
+    subgraph app [aplicacion]
+        pro["ProyectarEventos"]
+        con["ConsultarTransacciones"]
+        ec["EsperarConsistencia"]
+        ppro(["Proyeccion"])
+        plec(["LecturaTransacciones"])
+        ppos(["PosicionesLectura · Pausa"])
+    end
+    subgraph dom [dominio]
+        tr["transacciones: FiltroTransacciones,<br/>Ordenacion (lista blanca)"]
+        cs["consistencia: SecuenciasEsperadas"]
+    end
+    subgraph out [Salida]
+        pj["ProyeccionJdbc<br/>(esqueleto + UPDATE por versión, lápidas)"]
+        lj["LecturaTransaccionesJdbc"]
+        pl["PosicionesLecturaJdbc"]
+        xl["ExportadorXlsx (POI, streaming)"]
+    end
+    kafka --> pro
+    rest --> con
+    rest --> xl
+    esp --> ec
+    pro --> ppro & ppos
+    con --> tr & plec
+    ec --> cs & ppos
+    pj -. implementa .-> ppro
+    lj -. implementa .-> plec
+    pl -. implementa .-> ppos
+```
+
+consultas no tiene agregados ni publica eventos: su dominio son las reglas de cómo se pide la
+información (filtros, orden, secuencias esperadas). La aplicación trabaja directamente con los
+contratos porque el contexto es conformista ([dominio/consultas.md](../dominio/consultas.md)).

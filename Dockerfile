@@ -35,3 +35,6 @@ COPY --from=build /src/servicios/clasificacion/target/clasificacion.jar app.jar
 
 FROM base AS importacion
 COPY --from=build /src/servicios/importacion/target/importacion.jar app.jar
+
+FROM base AS consultas
+COPY --from=build /src/servicios/consultas/target/consultas.jar app.jar

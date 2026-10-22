@@ -1,0 +1,34 @@
+### Requiere haber iniciado sesión con http/identidad.http ({{token}}) y tener transacciones
+### (http/importacion.http). Las variables {{cuenta}} y {{categoria}} salen de movimientos.http y clasificacion.http.
+
+### Rejilla: por defecto, fecha contable descendente y 50 por página
+GET {{consultas}}/transacciones
+Authorization: Bearer {{token}}
+
+### Leer lo que acabas de escribir: pega aquí el Gastos-Secuencia de la respuesta del último comando.
+### Si consultas no lo ha proyectado en 3 s, responde igualmente con Gastos-Desfase: true.
+GET {{consultas}}/transacciones
+Authorization: Bearer {{token}}
+Gastos-Esperar: movimientos=1,clasificacion=1
+
+### Filtros: concepto sin tildes ni mayúsculas, rango de fechas e importes, una cuenta
+GET {{consultas}}/transacciones?concepto=bizum&desde=2026-07-01&hasta=2026-07-31&importeMax=0&cuentaId={{cuenta}}
+Authorization: Bearer {{token}}
+
+### Una categoría O sin categoría (como en el back antiguo); etiquetaId/sinEtiqueta funcionan igual
+GET {{consultas}}/transacciones?categoriaId={{categoria}}&sinCategoria=true
+Authorization: Bearer {{token}}
+
+### Orden por importe ascendente (desempata por la fila del extracto y el id), segunda página de 10
+GET {{consultas}}/transacciones?orden=importe&direccion=ASC&pagina=1&tamano=10
+Authorization: Bearer {{token}}
+
+### Detalle (404 si no existe, está borrada o es de otro usuario)
+GET {{consultas}}/transacciones/{{transaccion}}
+Authorization: Bearer {{token}}
+
+### Excel con los mismos filtros y orden, sin paginar (hasta 50 000 filas)
+GET {{consultas}}/transacciones/exportacion?desde=2026-01-01&orden=fechaContable&direccion=ASC
+Authorization: Bearer {{token}}
+
+>> transacciones.xlsx

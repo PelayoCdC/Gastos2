@@ -9,10 +9,10 @@ código) en la fase en que se implementa.
 | [Inicio de sesión y petición autenticada](#42-inicio-de-sesión-y-petición-autenticada) | F1 (directo) / F2 (gateway) | ✅ |
 | [Siembra del catálogo al registrarse](#44-siembra-del-catálogo-al-registrarse) | F5 | ✅ |
 | [Registro de un extracto en movimientos](#43-registro-de-un-extracto-en-movimientos) | F4 | ✅ |
-| [Importación de un extracto de punta a punta](#48-importación-de-un-extracto-de-punta-a-punta) (la parte de consultas llega en F8) | F7 | ✅ |
+| [Importación de un extracto de punta a punta](#48-importación-de-un-extracto-de-punta-a-punta) | F7 (consultas en F8) | ✅ |
 | [Clasificación automática de un extracto importado](#46-clasificación-automática-de-un-extracto-importado) | F6 | ✅ |
 | [Crear y clasificar una transacción a mano (dos servicios, *read-through*)](#47-crear-y-clasificar-una-transacción-a-mano) | F6 | ✅ |
-| Leer lo que acabas de escribir (`Gastos-Secuencia` / `Gastos-Esperar`) | F8 | pendiente |
+| [Leer lo que acabas de escribir (`Gastos-Secuencia` / `Gastos-Esperar`)](#49-leer-lo-que-acabas-de-escribir) | F8 | ✅ |
 | [Borrar una categoría usada por etiquetas y transacciones](#45-borrar-una-categoría-usada) | F5 | ✅ |
 | Reconstruir consultas reproduciendo Kafka | F9 | pendiente |
 | Restaurar un respaldo v1 (migración desde el back antiguo) | F10 | pendiente |
@@ -273,3 +273,40 @@ y un xlsx con fechas reales de Excel y una fórmula:
 | Otro usuario importa en esa cuenta | 404 `RECURSO_NO_ENCONTRADO` (respondido por movimientos y propagado) |
 | Saldo de la cuenta | 2775,67 (la última fila con saldo; las del xlsx no traen saldo y no cuentan) |
 | Clasificación automática, unos ms después | COMPRA LUPA → Alimentacion + Supermercado; FARMACIA → Salud + Farmacia; NETFLIX → Ocio y cultura + Suscripciones; NOMINA → Ingresos + Nomina; PAYPAL *SPOTIFY → Ocio y cultura + Suscripciones, Compras online; BIZUM → etiqueta Bizum |
+
+## 4.9 Leer lo que acabas de escribir
+
+([ADR 0011](../adr/0011-leer-lo-que-acabas-de-escribir.md)) El front clasifica una transacción y vuelve
+a pedir la rejilla, que sale de consultas, un lado de lectura con consistencia eventual.
+
+```mermaid
+sequenceDiagram
+    actor U as Front
+    participant C as clasificacion
+    participant O as outbox → Kafka
+    participant Q as consultas
+    participant DB as proyecciones
+    U->>C: PUT /api/clasificacion/transacciones/{id}
+    C->>O: TransaccionClasificada (secuencia 977)
+    C-->>U: 200 · Gastos-Secuencia: clasificacion=977
+    U->>Q: GET /api/consultas/transacciones · Gastos-Esperar: clasificacion=977
+    loop cada 50 ms, 3 s como mucho
+        Q->>DB: ¿proyeccion_posicion(usuario, clasificacion) ≥ 977?
+    end
+    O--)Q: lote con TransaccionClasificada → proyectar y avanzar la posición
+    Q-->>U: 200 rejilla ya con el cambio (o Gastos-Desfase: true si no llegó)
+```
+
+**El front solo necesita un interceptor:** guardar el máximo de cada contexto que ve en
+`Gastos-Secuencia` y enviarlo en `Gastos-Esperar` en las consultas. Ninguna pantalla tiene que saber
+qué servicio escribió qué.
+
+Resultado medido en el smoke de F8, a través del gateway:
+
+| Paso | Resultado |
+|---|---|
+| Importar 2 filas y pedir la rejilla con `Gastos-Esperar: movimientos=<n>` | Las 2 filas, sin desfase (165 ms) |
+| Clasificar a mano y pedir el detalle con `Gastos-Esperar: clasificacion=<n>` | Ya trae la categoría nueva (28 ms) |
+| Borrar el documento (204 con `Gastos-Secuencia`) y pedir la rejilla esperando esa secuencia | Vacía |
+| `Gastos-Esperar` con una secuencia que no llegará | 200 con `Gastos-Desfase: true` a los 3,08 s |
+| Extracto de 150 filas / de 2000 filas | Rejilla completa en 224 ms / 2,6 s |

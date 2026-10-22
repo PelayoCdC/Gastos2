@@ -2,15 +2,12 @@ package es.gastos.clasificacion.infraestructura.http;
 
 import es.gastos.clasificacion.aplicacion.clasificacion.OrigenTransacciones;
 import es.gastos.clasificacion.dominio.clasificacion.TransaccionId;
+import es.gastos.compartido.web.UsuarioAutenticado;
 import es.gastos.kernel.aplicacion.ServicioNoDisponible;
 import es.gastos.kernel.dominio.UsuarioId;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.resilience.annotation.Retryable;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.ResourceAccessException;
@@ -48,7 +45,7 @@ class OrigenTransaccionesHttp implements OrigenTransacciones {
 		try {
 			RespuestaTransaccion respuesta = this.cliente.get()
 					.uri("/internal/transacciones/{id}", id.valor())
-					.header(HttpHeaders.AUTHORIZATION, tokenDeLaPeticion())
+					.header(HttpHeaders.AUTHORIZATION, UsuarioAutenticado.cabeceraAutorizacion())
 					.retrieve()
 					.body(RespuestaTransaccion.class);
 			return Optional.ofNullable(respuesta).map(OrigenTransaccionesHttp::hechos);
@@ -67,7 +64,7 @@ class OrigenTransaccionesHttp implements OrigenTransacciones {
 	public List<HechosTransaccion> consultarVarias(UsuarioId usuario, Collection<TransaccionId> ids) {
 		RespuestaTransaccion[] respuesta = this.cliente.post()
 				.uri("/internal/transacciones/consulta")
-				.header(HttpHeaders.AUTHORIZATION, tokenDeLaPeticion())
+				.header(HttpHeaders.AUTHORIZATION, UsuarioAutenticado.cabeceraAutorizacion())
 				.body(Map.of("ids", ids.stream().map(TransaccionId::valor).toList()))
 				.retrieve()
 				.onStatus(estado -> estado.is5xxServerError(), (peticion, error) -> {
@@ -79,13 +76,5 @@ class OrigenTransaccionesHttp implements OrigenTransacciones {
 
 	private static HechosTransaccion hechos(RespuestaTransaccion respuesta) {
 		return new HechosTransaccion(new TransaccionId(respuesta.id()), respuesta.documentoId(), respuesta.concepto());
-	}
-
-	private static String tokenDeLaPeticion() {
-		Authentication autenticacion = SecurityContextHolder.getContext().getAuthentication();
-		if (autenticacion instanceof JwtAuthenticationToken jwt) {
-			return "Bearer " + jwt.getToken().getTokenValue();
-		}
-		throw new IllegalStateException("El read-through solo se usa dentro de una peticion autenticada (estado " + HttpStatus.UNAUTHORIZED + ")");
 	}
 }

@@ -31,13 +31,16 @@ public class PublicadorEventosOutbox implements PublicadorEventos {
 
 	private final Runnable despertarRelay;
 
+	private final String contexto;
+
 	public PublicadorEventosOutbox(TraductorEventos traductor, OutboxRepositorio outbox, JsonMapper json, Clock reloj,
-			Runnable despertarRelay) {
+			Runnable despertarRelay, String contexto) {
 		this.traductor = traductor;
 		this.outbox = outbox;
 		this.json = json;
 		this.reloj = reloj;
 		this.despertarRelay = despertarRelay;
+		this.contexto = contexto;
 	}
 
 	@Override
@@ -64,7 +67,7 @@ public class PublicadorEventosOutbox implements PublicadorEventos {
 		long secuencia = this.outbox.insertar(new FilaOutbox(0, Uuid7.generar(), entrada.topic(), entrada.tipo(),
 				entrada.version(), evento.usuarioId().valor(), evento.agregadoId(), evento.versionAgregado(),
 				this.reloj.instant(), this.json.writeValueAsString(datos), null));
-		SecuenciaPublicada.registrar(secuencia);
+		SecuenciaPublicada.registrar(this.contexto, secuencia);
 	}
 
 	private void despertarTrasCommit() {

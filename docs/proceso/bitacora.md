@@ -22,7 +22,7 @@ en los [ADR](../adr/README.md).
 | F5 | clasificacion A: catálogo, prioridad, siembra, borrados | ✅ Terminada |
 | F6 | clasificacion B: motor, automática, propagación, masiva | ✅ Terminada |
 | F7 | importacion: formatos, lectura Excel/CSV, importar | ✅ Terminada |
-| F8 | consultas A: proyecciones, rejilla, xlsx, leer lo que acabas de escribir | Pendiente |
+| F8 | consultas A: proyecciones, rejilla, xlsx, leer lo que acabas de escribir | ✅ Terminada |
 | F9 | consultas B: informes, análisis, reconstrucción | Pendiente |
 | F10 | Respaldo v1 y migración de los datos reales | Pendiente |
 | F11 | Observabilidad, e2e y cierre de la documentación | Pendiente |
@@ -574,3 +574,80 @@ en los [ADR](../adr/README.md).
   - Nombre de formato repetido 409, formato incompleto 400, cuenta y formato ajenos 404.
   - Las 7 transacciones importadas aparecen clasificadas automáticamente en clasificacion.
   - 413 por encima de 10 MB en el gateway y en el propio servicio; `/internal` bloqueado (403).
+
+## F8 · consultas A: proyecciones, rejilla, Excel y leer lo que acabas de escribir (2026-10-22)
+
+### Qué se hizo
+
+- **`Gastos-Secuencia` en todos los productores** (`compartido/mensajeria`):
+  - `SecuenciaPublicada` anota, por contexto, la secuencia de outbox de cada evento escrito en el hilo;
+  - `FiltroSecuenciaPublicada` la pone en la respuesta justo antes del cuerpo (o al terminar, si es un
+    204) y solo en respuestas correctas de comandos;
+  - importacion reenvía la `Gastos-Secuencia` de movimientos, que es quien escribe los eventos de una
+    importación.
+- **`UsuarioAutenticado`** en `compartido/web`: el usuario y el JWT de la petición para interceptores y
+  clientes HTTP. Los dos adaptadores que reenviaban el token (clasificacion e importacion) lo usan;
+  sale de la lista de deuda.
+- **Servicio consultas** (puerto 8085):
+  - **Dominio:** `FiltroTransacciones` (reglas del back antiguo: O dentro de cada grupo, Y entre
+    grupos), `Ordenacion` (lista blanca con desempate por `orden` e id) y `SecuenciasEsperadas`.
+  - **Aplicación:** `ProyectarEventos` (conformista: trabaja con los contratos y añade el concepto
+    normalizado y su clave), `ConsultarTransacciones` (rejilla, detalle y exportación con tope de
+    50 000 filas) y `EsperarConsistencia` (50 ms × 60 intentos).
+  - **Infraestructura:** consumidor por lotes con caída a uno a uno; `ProyeccionJdbc` (esqueleto +
+    `UPDATE` protegido por versión, lápidas y eventos de conjunto); `LecturaTransaccionesJdbc` (SQL
+    dinámico con parámetros con nombre); `ExportadorXlsx` (POI en streaming); interceptor de
+    `Gastos-Esperar`; Flyway `V1__proyecciones.sql`.
+  - **Despliegue:** módulo, etapa del `Dockerfile` y servicio en `compose.yaml` (`127.0.0.1:8085`).
+- **Documentación:** contexto de consultas con las reglas de proyección y la API; C4 de componentes;
+  escenario 4.9; notas de implementación en los ADR 0010 y 0011; guía de la API, comparativa,
+  despliegue, riesgos y deuda; problemas conocidos del entorno en `operacion.md`; `http/consultas.http`.
+
+### Decisiones y desviaciones
+
+- **La cabecera la pone un filtro y no cada controlador.** Así ningún comando puede olvidarla. La
+  dificultad es que la secuencia solo se conoce al terminar el caso de uso y la cabecera tiene que salir
+  antes que el cuerpo: se envuelve la respuesta y se anota en el último momento.
+- **consultas ignora en `Gastos-Esperar` los contextos que no proyecta**, y una cabecera mal formada es
+  un 400 en vez de ignorarse.
+- **Proyección por lotes** (hasta 500 mensajes por transacción) para que una importación se vea en
+  cientos de milisegundos; si el lote falla, uno a uno para aislar el mensaje culpable.
+- **El grupo de Kafka ya sale de `gastos.consultas.proyeccion.version`**, como dice el ADR 0010; la
+  reconstrucción al cambiarla queda para F9.
+- **El Excel conserva las 7 columnas del antiguo** en el mismo orden y añade 3 al final; fechas e
+  importes son ahora valores reales de Excel.
+- **POI también en consultas**, solo para escribir el Excel. Leer extractos sigue siendo exclusivo de
+  importacion (ADR 0003).
+
+### Problemas encontrados
+
+- **Docker Desktop no arrancaba tras el reinicio de Windows** (otra vez los sockets huérfanos de
+  `%LOCALAPPDATA%\Docker\run`). Mismo arreglo que en F0, ahora documentado en `operacion.md`.
+- **Sin memoria tras el smoke de F7:** el VM de WSL retenía unos 12 GB de caché de disco y ni `bash`
+  podía crear procesos. Se liberó vaciando la caché del VM; también anotado en `operacion.md`.
+- **Una lectura dejaba restos de secuencia en el hilo** (lo detectó `FiltroSecuenciaPublicadaTest`):
+  ahora las lecturas también limpian al terminar.
+- **Sobrecarga ambigua** entre `SecuenciasEsperadas.de(String)` (estático) y `de(Predicate)` (de
+  instancia): el segundo pasa a llamarse `soloDe`.
+
+### Verificación
+
+- `./mvnw verify` en verde para los 12 módulos (3 min 32 s). Lo nuevo:
+  - `FiltroSecuenciaPublicadaTest` (4): la mayor secuencia por contexto, 204 sin cuerpo, nada en errores
+    ni en lecturas, y sin restos de otros usos del hilo.
+  - `ImportacionIT` comprueba ahora `Gastos-Secuencia` en los formatos y el reenvío de la de movimientos.
+  - consultas: `ConsultasDominioTest` (3), `ConsultasAplicacionTest` (3, con la espera sin dormir),
+    `ArquitecturaTest` y `ConsultasIT` (5): filtros y orden del back antiguo (`CascadaYFiltrosTest`),
+    `Gastos-Esperar` con y sin desfase, eventos desordenados, repetidos y tardíos, eventos de conjunto
+    (reasignar y borrar documento, borrar categoría y etiqueta) y las columnas del Excel.
+- **Reconstrucción desde el log:** consultas arrancó por primera vez con los topics ya llenos (eventos
+  de los smokes de F3 a F7) y su proyección cuadra con las fuentes: 27 transacciones con la misma suma
+  de importes (5189,43), 5 cuentas, 14 documentos y 20 transacciones con categoría, sin nada en el DLT.
+- **Smoke en compose a través del gateway** (resultados en el
+  [escenario 4.9](../arquitectura/04-escenarios.md#49-leer-lo-que-acabas-de-escribir)): 17 comprobaciones
+  en verde, entre ellas el escenario de `CascadaYFiltrosTest` con los servicios reales, clasificar a
+  mano y leer el detalle al instante, borrar un documento y ver la rejilla vacía en la siguiente
+  consulta, el desfase a los 3 s, el Excel y el aislamiento entre usuarios.
+- **Medidas** (todo en Docker en el portátil): importar 150 filas 176 ms, rejilla con `Gastos-Esperar`
+  224 ms, clasificación automática visible en ~1 s; con 2000 filas, 2,5 s, 2,6 s y ~13,5 s. Lo último
+  queda como riesgo aceptado ([riesgos](../arquitectura/07-riesgos-y-deuda.md)).

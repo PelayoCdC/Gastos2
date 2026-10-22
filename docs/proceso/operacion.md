@@ -39,6 +39,19 @@ scripts/generar-claves-dev.sh --forzar   # la regenera: los tokens emitidos deja
 - El JWKS público está en `GET /.well-known/jwks.json`. El `kid` es la huella de la clave, así que no
   cambia mientras la clave no cambie.
 
+## Problemas conocidos del entorno (Windows + Docker Desktop)
+
+- **Docker Desktop no arranca tras reiniciar Windows.** El backend falla con "initializing Inference
+  manager ... remove ...\Docker\run\dockerInference: El sistema no tiene acceso al archivo": son sockets
+  de la sesión anterior que no se pueden borrar. Se arregla cerrando Docker Desktop, renombrando
+  `%LOCALAPPDATA%\Docker\run` y `%LOCALAPPDATA%\docker-secrets-engine` (por ejemplo a
+  `run.huerfano-<fecha>`) y volviéndolo a abrir: crea directorios nuevos.
+- **Falta de memoria con todo levantado.** Sin archivo de paginación, el VM de WSL de Docker retiene
+  la caché de disco aunque los contenedores estén parados, y las JVM (o incluso `bash`) fallan con
+  "insufficient memory". Se libera sin parar nada con
+  `wsl -d docker-desktop -u root sh -c "sync; echo 3 > /proc/sys/vm/drop_caches"`. Para el
+  `./mvnw verify` completo conviene parar antes los servicios de compose.
+
 ## Pendiente de completar
 
 | Tarea | Fase |

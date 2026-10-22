@@ -32,6 +32,7 @@
 		<module>servicios/movimientos</module>
 		<module>servicios/clasificacion</module>
 		<module>servicios/importacion</module>
+		<module>servicios/consultas</module>
 		<module>servicios/gateway</module>
 	</modules>
 

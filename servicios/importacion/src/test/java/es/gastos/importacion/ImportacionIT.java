@@ -40,6 +40,7 @@ import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -112,7 +113,8 @@ class ImportacionIT {
 
 		this.mvc.perform(como(post("/formatos")).content(formato(" UNICAJA  XLSX ")))
 				.andExpect(status().isConflict())
-				.andExpect(jsonPath("$.codigo").value("NOMBRE_DUPLICADO"));
+				.andExpect(jsonPath("$.codigo").value("NOMBRE_DUPLICADO"))
+				.andExpect(header().doesNotExist("Gastos-Secuencia"));
 		this.mvc.perform(como(post("/formatos")).content("{\"nombre\":\"Sin columnas\"}"))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.codigo").value("MAPEO_INCOMPLETO"));
@@ -163,7 +165,8 @@ class ImportacionIT {
 				.andExpect(jsonPath("$.nombreArchivo").value("extracto.xlsx"))
 				.andExpect(jsonPath("$.errores.length()").value(1))
 				.andExpect(jsonPath("$.errores[0].mensaje").value("Fila 4: fecha con formato incorrecto: '31/02/2026'"))
-				.andExpect(jsonPath("$.duplicados").isEmpty());
+				.andExpect(jsonPath("$.duplicados").isEmpty())
+				.andExpect(header().string("Gastos-Secuencia", "movimientos=4242"));
 
 		assertThat(AUTORIZACIONES_RECIBIDAS).contains("Bearer token");
 		String extracto = EXTRACTOS_RECIBIDOS.getLast();
@@ -226,6 +229,7 @@ class ImportacionIT {
 		String respuesta = this.mvc.perform(como(post("/formatos")).content(formato(nombre)))
 				.andExpect(status().isCreated())
 				.andExpect(header().exists("Location"))
+				.andExpect(header().string("Gastos-Secuencia", matchesPattern("importacion=\\d+")))
 				.andExpect(jsonPath("$.formatoFecha").value("dd/MM/yyyy"))
 				.andReturn().getResponse().getContentAsString();
 		return JsonPath.read(respuesta, "$.id");
@@ -315,6 +319,9 @@ class ImportacionIT {
 				}
 				byte[] bytes = cuerpo.getBytes(StandardCharsets.UTF_8);
 				intercambio.getResponseHeaders().add("Content-Type", estado < 300 ? "application/json" : "application/problem+json");
+				if (estado < 300) {
+					intercambio.getResponseHeaders().add("Gastos-Secuencia", "movimientos=4242");
+				}
 				intercambio.sendResponseHeaders(estado, bytes.length);
 				intercambio.getResponseBody().write(bytes);
 				intercambio.close();

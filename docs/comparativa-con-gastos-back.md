@@ -24,6 +24,7 @@ comportamiento marcados con ⚑ son **intencionados**: corrigen defectos y los d
 | gastos-back | Gastos2 |
 |---|---|
 | `POST /x/search` con criterio en el cuerpo y `PageImpl` de Spring | `GET` con parámetros y `Pagina<T>` propia |
+| `POST /transacciones/search` y `POST /transacciones/exportar` | `GET /consultas/transacciones` y `GET /consultas/transacciones/exportacion`, con los mismos parámetros |
 | Filtros de informes por nombre (problema con las comas) | Filtros por id |
 | Números y fechas como texto en dos formatos | Números JSON (dinero con 2 decimales) y fechas ISO |
 | Errores con el JSON por defecto de Boot; 500 con entradas malformadas | RFC 9457 con `codigo`; 400, 404, 409, 413 o 415 según el caso |
@@ -52,7 +53,9 @@ comportamiento marcados con ⚑ son **intencionados**: corrigen defectos y los d
 | ⚑ Fórmulas en el Excel | Se leía el texto de la fórmula y la fila daba error | Se lee el último valor calculado | [importación](dominio/importacion.md) |
 | ⚑ Contraseña / nombre | Solo "no vacía"; nombre opcional | Al menos 8 caracteres; nombre obligatorio | [identidad](dominio/identidad.md) |
 | ⚑ Evolución del saldo | Agrupaba por **nombre** de cuenta (fusionaba cuentas homónimas) | Agrupa por id | [consultas](dominio/consultas.md) |
-| ⚑ Ordenación de la rejilla | Sin desempate | Desempate por `orden` e `id` | consultas |
+| ⚑ Ordenación de la rejilla | Sin desempate; un campo desconocido daba 500 | Desempate por `orden` e `id`; lista blanca de campos (400 `ORDEN_INVALIDO`) | [consultas](dominio/consultas.md) |
+| ⚑ Excel de transacciones | Fechas como texto, saldo desconocido como 0 | Fechas e importes reales; saldo desconocido vacío; añade fecha valor, nota y documento al final | [consultas](dominio/consultas.md) |
+| Leer justo después de guardar | Inmediato (una sola base de datos) | Consistencia eventual con `Gastos-Esperar` (espera hasta 3 s) | [ADR 0011](adr/0011-leer-lo-que-acabas-de-escribir.md) |
 | Clasificación automática | Al importar (síncrona) | Al importar (asíncrona, milisegundos después) | [ADR 0002](adr/0002-asignaciones-en-clasificacion.md) |
 | Exportación v1 para el móvil | `GET /migracion/exportar` | `GET /api/consultas/exportacion/v1` (mismo formato) | [ADR 0020](adr/0020-restauracion-v1-con-uuid-originales.md) |
 | Restaurar un respaldo | No existía en el back (solo en el móvil) | `POST /api/importacion/respaldos` (SIMULAR o SUSTITUIR) | ADR 0020 |

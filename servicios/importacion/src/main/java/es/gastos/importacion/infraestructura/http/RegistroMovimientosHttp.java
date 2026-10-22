@@ -1,5 +1,7 @@
 package es.gastos.importacion.infraestructura.http;
 
+import es.gastos.compartido.mensajeria.SecuenciaPublicada;
+import es.gastos.compartido.web.UsuarioAutenticado;
 import es.gastos.importacion.aplicacion.RegistroMovimientos;
 import es.gastos.importacion.dominio.extracto.Interpretacion;
 import es.gastos.kernel.aplicacion.ServicioNoDisponible;
@@ -10,10 +12,8 @@ import es.gastos.kernel.dominio.RecursoNoEncontrado;
 import es.gastos.kernel.dominio.UsuarioId;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseEntity;
 import org.springframework.resilience.annotation.Retryable;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.ResourceAccessException;
@@ -59,15 +59,15 @@ class RegistroMovimientosHttp implements RegistroMovimientos {
 	@Override
 	@Retryable(includes = ResourceAccessException.class, maxRetries = 2, delay = 200)
 	public Registro registrar(UsuarioId usuario, Extracto extracto) {
-		String token = tokenDeLaPeticion();
-		RespuestaExtracto respuesta;
+		String token = UsuarioAutenticado.cabeceraAutorizacion();
+		ResponseEntity<RespuestaExtracto> entidad;
 		try {
-			respuesta = this.cliente.post()
+			entidad = this.cliente.post()
 					.uri("/internal/extractos")
 					.header(HttpHeaders.AUTHORIZATION, token)
 					.body(peticion(extracto))
 					.retrieve()
-					.body(RespuestaExtracto.class);
+					.toEntity(RespuestaExtracto.class);
 		} catch (HttpClientErrorException.NotFound noExiste) {
 			throw new RecursoNoEncontrado("la cuenta", extracto.cuentaId());
 		} catch (HttpClientErrorException.BadRequest | HttpClientErrorException.Conflict rechazo) {
@@ -78,9 +78,12 @@ class RegistroMovimientosHttp implements RegistroMovimientos {
 		} catch (RuntimeException e) {
 			throw new ServicioNoDisponible("movimientos", e);
 		}
+		RespuestaExtracto respuesta = entidad.getBody();
 		if (respuesta == null) {
 			throw new ServicioNoDisponible("movimientos", new IllegalStateException("Respuesta vacia"));
 		}
+		// Los eventos de la importación los escribe movimientos: su secuencia es la que el cliente debe esperar
+		SecuenciaPublicada.registrarCabecera(entidad.getHeaders().getFirst(SecuenciaPublicada.CABECERA));
 		return new Registro(respuesta.documentoId(), respuesta.nombreDocumento(), respuesta.nombreArchivo(), respuesta.importadas(),
 				respuesta.duplicados() == null ? List.of() : respuesta.duplicados());
 	}
@@ -107,13 +110,5 @@ class RegistroMovimientosHttp implements RegistroMovimientos {
 		String detalle = problema == null || problema.get("detail") == null
 				? "movimientos rechazo el extracto" : problema.get("detail").toString();
 		return rechazo.getStatusCode().value() == 409 ? new Conflicto(codigo, detalle) : new ExcepcionDominio(codigo, detalle);
-	}
-
-	private static String tokenDeLaPeticion() {
-		Authentication autenticacion = SecurityContextHolder.getContext().getAuthentication();
-		if (autenticacion instanceof JwtAuthenticationToken jwt) {
-			return "Bearer " + jwt.getToken().getTokenValue();
-		}
-		throw new IllegalStateException("La importacion solo se usa dentro de una peticion autenticada");
 	}
 }
